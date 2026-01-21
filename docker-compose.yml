@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres
+    environment:
+      POSTGRES_USER: fraud_db
+      POSTGRES_DB: fraud_db
+      POSTGRES_PASSWORD: fraud_db
+    volumes: 
+      - fraud-db:/var/lib/postgresql
+    ports:
+      - '5433:5432'
+
+volumes:
+  fraud-db:
