@@ -30,4 +30,9 @@ const (
 
 	// Minimum transactions needed for reliable profiling
 	MinTransactionsForProfiling = 5
+
+	TriggerFactorsAMOUNTDEVIATION = "AMOUNT_DEVIATION"
+	TriggerFactorsFREQUENCYSPIKE  = "FREQUENCY_SPIKE"
+	TriggerFactorsNEWMODE         = "NEW_MODE"
+	TriggerFactorsTIMEANOMALY     = "TIME_ANOMALY"
 )

@@ -10,7 +10,7 @@ var (
 	ErrWrongPassword          = errors.New("password is incorrect")
 	ErrGenerateToken          = errors.New("unable to generate token")
 	ErrEmptyToken             = errors.New("empty token")
-	ErrInvalidToken           = errors.New("invlaid token")
+	ErrInvalidToken           = errors.New("invalid token")
 	ErrExpiredToken           = errors.New("expired token")
 	ErrLogoutFailed           = errors.New("token blacklisting failed")
 	ErrAuthServiceUnavailable = errors.New("redis down for authentication")

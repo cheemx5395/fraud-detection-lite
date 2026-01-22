@@ -33,7 +33,7 @@ func PostTransaction(DB *repository.Queries) func(w http.ResponseWriter, r *http
 			return
 		}
 
-		profile, err := DB.GetUserProfileByUserID(r.Context(), userID)
+		userProfile, err := DB.GetUserProfileByUserID(r.Context(), userID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				middleware.ErrorResponse(w, http.StatusBadRequest, error.ErrUserNotFound)
@@ -52,24 +52,36 @@ func PostTransaction(DB *repository.Queries) func(w http.ResponseWriter, r *http
 			return
 		}
 
+		profile := &repository.UserProfileBehavior{
+			UserID:                            userProfile.UserID,
+			AverageTransactionAmount:          userProfile.AverageTransactionAmount,
+			AverageNumberOfTransactionsPerDay: userProfile.AverageNumberOfTransactionsPerDay,
+			MaxTransactionAmountSeen:          userProfile.MaxTransactionAmountSeen,
+			RegisteredPaymentModes:            helpers.GetModeSliceFromStringSlice(userProfile.RegisteredPaymentModes),
+			UsualTransactionStartHour:         userProfile.UsualTransactionStartHour,
+			UsualTransactionEndHour:           userProfile.UsualTransactionEndHour,
+			TotalTransactions:                 userProfile.TotalTransactions,
+			AllowedTransactions:               userProfile.AllowedTransactions,
+			UpdatedAt:                         userProfile.UpdatedAt,
+		}
+
 		analysis := helpers.AnalyzeTransaction(
 			&txnParams,
-			&profile,
+			profile,
 			int(recentCount),
 			time.Now(),
 		)
 
 		txn, err := DB.CreateTransaction(r.Context(), repository.CreateTransactionParams{
-			UserID:           userID,
-			Amount:           int32(txnParams.Amount),
-			Type:             repository.TransactionType(txnParams.Type),
-			Mode:             repository.Mode(txnParams.Mode),
-			RiskScore:        analysis.FinalRiskScore,
-			TriggeredFactors: analysis.TriggeredFactors,
-			Decision:         analysis.Decision,
+			UserID:    userID,
+			Amount:    int32(txnParams.Amount),
+			Mode:      repository.Mode(txnParams.Mode),
+			RiskScore: analysis.FinalRiskScore,
+			Column5:   analysis.TriggeredFactors,
+			Decision:  analysis.Decision,
 		})
 		if err != nil {
-			middleware.ErrorResponse(w, http.StatusInternalServerError, error.ErrDB)
+			middleware.ErrorResponse(w, http.StatusInternalServerError, err)
 			return
 		}
 
@@ -94,7 +106,15 @@ func GetTransactions(DB *repository.Queries) func(w http.ResponseWriter, r *http
 			middleware.ErrorResponse(w, http.StatusUnauthorized, err)
 			return
 		}
-		txns, err := DB.GetAllTransactionsByUserID(r.Context(), id)
+		txns, err := DB.GetAllTransactionsByUserID(r.Context(), repository.GetAllTransactionsByUserIDParams{
+			UserID: id,
+			Limit:  20,
+			Offset: 0,
+		})
+		if err != nil {
+			middleware.ErrorResponse(w, http.StatusInternalServerError, err)
+			return
+		}
 		middleware.SuccessResponse(w, http.StatusOK, txns)
 	}
 }

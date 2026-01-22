@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -37,8 +38,13 @@ func Signup(DB *repository.Queries) func(http.ResponseWriter, *http.Request) {
 
 		user, err := DB.CreateUser(r.Context(), userParams)
 		if err != nil {
-			middleware.ErrorResponse(w, http.StatusInternalServerError, err)
+			middleware.ErrorResponse(w, http.StatusConflict, err)
 			return
+		}
+
+		err = DB.CreateEmptyUserProfile(r.Context(), user.ID)
+		if err != nil {
+			log.Println(err)
 		}
 
 		res := specs.UserSignupResponse{

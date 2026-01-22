@@ -7,6 +7,8 @@ package repository
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countRecentTransactions = `-- name: CountRecentTransactions :one
@@ -46,43 +48,69 @@ const createTransaction = `-- name: CreateTransaction :one
 INSERT INTO transactions (
     user_id,
     amount,
-    type,
     mode,
     risk_score,
     triggered_factors,
     decision,
     created_at,
     updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
-RETURNING id, user_id, amount, type, mode, risk_score, triggered_factors, decision, created_at, updated_at
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5::text[]::trigger_factors[],   
+    $6,
+    NOW(),
+    NOW()
+)
+RETURNING
+    id,
+    user_id,
+    amount,
+    mode,
+    risk_score,
+    triggered_factors::text[] AS triggered_factors, 
+    decision,
+    created_at,
+    updated_at
 `
 
 type CreateTransactionParams struct {
-	UserID           int32               `json:"user_id"`
-	Amount           int32               `json:"amount"`
-	Type             TransactionType     `json:"type"`
-	Mode             Mode                `json:"mode"`
-	RiskScore        int32               `json:"risk_score"`
-	TriggeredFactors []TriggerFactors    `json:"triggered_factors"`
-	Decision         TransactionDecision `json:"decision"`
+	UserID    int32               `json:"user_id"`
+	Amount    int32               `json:"amount"`
+	Mode      Mode                `json:"mode"`
+	RiskScore int32               `json:"risk_score"`
+	Column5   []string            `json:"column_5"`
+	Decision  TransactionDecision `json:"decision"`
 }
 
-func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error) {
+type CreateTransactionRow struct {
+	ID               int32               `json:"id"`
+	UserID           int32               `json:"user_id"`
+	Amount           int32               `json:"amount"`
+	Mode             Mode                `json:"mode"`
+	RiskScore        int32               `json:"risk_score"`
+	TriggeredFactors []string            `json:"triggered_factors"`
+	Decision         TransactionDecision `json:"decision"`
+	CreatedAt        pgtype.Timestamp    `json:"created_at"`
+	UpdatedAt        pgtype.Timestamp    `json:"updated_at"`
+}
+
+func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionParams) (CreateTransactionRow, error) {
 	row := q.db.QueryRow(ctx, createTransaction,
 		arg.UserID,
 		arg.Amount,
-		arg.Type,
 		arg.Mode,
 		arg.RiskScore,
-		arg.TriggeredFactors,
+		arg.Column5,
 		arg.Decision,
 	)
-	var i Transaction
+	var i CreateTransactionRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.Amount,
-		&i.Type,
 		&i.Mode,
 		&i.RiskScore,
 		&i.TriggeredFactors,
@@ -94,13 +122,20 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 }
 
 const getAllTransactionsByUserID = `-- name: GetAllTransactionsByUserID :many
-SELECT id, user_id, amount, type, mode, risk_score, triggered_factors, decision, created_at, updated_at FROM transactions
+SELECT id, user_id, amount, mode, risk_score, triggered_factors, decision, created_at, updated_at FROM transactions
 WHERE user_id = $1
-LIMIT 20 OFFSET 40
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
 `
 
-func (q *Queries) GetAllTransactionsByUserID(ctx context.Context, userID int32) ([]Transaction, error) {
-	rows, err := q.db.Query(ctx, getAllTransactionsByUserID, userID)
+type GetAllTransactionsByUserIDParams struct {
+	UserID int32 `json:"user_id"`
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) GetAllTransactionsByUserID(ctx context.Context, arg GetAllTransactionsByUserIDParams) ([]Transaction, error) {
+	rows, err := q.db.Query(ctx, getAllTransactionsByUserID, arg.UserID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +147,6 @@ func (q *Queries) GetAllTransactionsByUserID(ctx context.Context, userID int32) 
 			&i.ID,
 			&i.UserID,
 			&i.Amount,
-			&i.Type,
 			&i.Mode,
 			&i.RiskScore,
 			&i.TriggeredFactors,
@@ -158,40 +192,4 @@ func (q *Queries) GetDailyTransactionStats(ctx context.Context, userID int32) (G
 		&i.LastTransactionTime,
 	)
 	return i, err
-}
-
-const getTransactions = `-- name: GetTransactions :many
-SELECT id, user_id, amount, type, mode, risk_score, triggered_factors, decision, created_at, updated_at FROM transactions
-LIMIT 20 OFFSET 40
-`
-
-func (q *Queries) GetTransactions(ctx context.Context) ([]Transaction, error) {
-	rows, err := q.db.Query(ctx, getTransactions)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Transaction
-	for rows.Next() {
-		var i Transaction
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.Amount,
-			&i.Type,
-			&i.Mode,
-			&i.RiskScore,
-			&i.TriggeredFactors,
-			&i.Decision,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }

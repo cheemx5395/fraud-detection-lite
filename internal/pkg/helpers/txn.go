@@ -65,7 +65,7 @@ func CalculateFrequencySpikeRisk(
 
 	windowHours := constants.FrequencyWindowHours.Hours()
 
-	if !profile.AverageTransactionsPerDay.Valid ||
+	if !profile.AverageNumberOfTransactionsPerDay.Valid ||
 		profile.TotalTransactions < constants.MinTransactionsForProfiling {
 
 		// Allow ~3 tx per hour for new users
@@ -78,7 +78,7 @@ func CalculateFrequencySpikeRisk(
 		return 10.0
 	}
 
-	avgPerDay := float64(profile.AverageTransactionsPerDay.Int32)
+	avgPerDay := float64(profile.AverageNumberOfTransactionsPerDay.Int32)
 
 	expectedInWindow := avgPerDay * (windowHours / 24.0)
 	if expectedInWindow < 0.5 {
@@ -216,26 +216,35 @@ func DetermineTriggeredFactors(
 	frequencyRisk float64,
 	modeRisk float64,
 	timeRisk float64,
-) []repository.TriggerFactors {
-	triggered := []repository.TriggerFactors{}
+) []string {
+	triggered := []string{}
 
 	if amountRisk > constants.ThresholdAmountDeviation {
-		triggered = append(triggered, repository.TriggerFactorsAMOUNTDEVIATION)
+		triggered = append(triggered, constants.TriggerFactorsAMOUNTDEVIATION)
 	}
 	if frequencyRisk > constants.ThresholdFrequencySpike {
-		triggered = append(triggered, repository.TriggerFactorsFREQUENCYSPIKE)
+		triggered = append(triggered, constants.TriggerFactorsFREQUENCYSPIKE)
 	}
 	if modeRisk > constants.ThresholdModeDeviation {
-		triggered = append(triggered, repository.TriggerFactorsNEWMODE)
+		triggered = append(triggered, constants.TriggerFactorsNEWMODE)
 	}
 	if timeRisk > constants.ThresholdTimeAnomaly {
-		triggered = append(triggered, repository.TriggerFactorsTIMEANOMALY)
+		triggered = append(triggered, constants.TriggerFactorsTIMEANOMALY)
 	}
 	return triggered
 }
 
 // DetermineTransactionDecision decides the action based on final risk score
-func DetermineTransactionDecision(finalRiskScore float64) repository.TransactionDecision {
+func DetermineTransactionDecision(finalRiskScore float64, profile *repository.UserProfileBehavior) repository.TransactionDecision {
+	if profile.TotalTransactions < constants.MinTransactionsForProfiling {
+		if finalRiskScore < 60.0 {
+			return repository.TransactionDecisionALLOW
+		} else if finalRiskScore < 75.0 {
+			return repository.TransactionDecisionFLAG
+		}
+		return repository.TransactionDecisionMFAREQUIRED
+	}
+
 	if finalRiskScore < constants.RiskThresholdAllow {
 		return repository.TransactionDecisionALLOW
 	} else if finalRiskScore < constants.RiskThresholdFlag {
@@ -266,7 +275,7 @@ func AnalyzeTransaction(
 
 	triggeredFactors := DetermineTriggeredFactors(amountRisk, frequencyRisk, modeRisk, timeRisk)
 
-	decision := DetermineTransactionDecision(finalRiskScore)
+	decision := DetermineTransactionDecision(finalRiskScore, profile)
 
 	return specs.FraudAnalysisResult{
 		Message:           "analysis result",

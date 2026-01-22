@@ -80,7 +80,7 @@ INSERT INTO user_profile_behavior (
     user_id,
     average_transaction_amount,
     max_transaction_amount_seen,
-    average_transactions_per_day,
+    average_number_of_transactions_per_day,
     registered_payment_modes,
     usual_transaction_start_hour,
     usual_transaction_end_hour,
@@ -101,7 +101,7 @@ SELECT
     LEAST(
         COUNT(*) FILTER (WHERE decision IN ('ALLOW', 'FLAG')),
         50
-    )::INTEGER AS average_transactions_per_day,
+    )::INTEGER AS average_number_of_transactions_per_day,
 
     ARRAY_AGG(DISTINCT mode)
         FILTER (WHERE decision IN ('ALLOW', 'FLAG')) AS registered_payment_modes,
@@ -125,7 +125,7 @@ WHERE user_id = $1
 ON CONFLICT (user_id) DO UPDATE SET 
     average_transaction_amount = EXCLUDED.average_transaction_amount,
     max_transaction_amount_seen = EXCLUDED.max_transaction_amount_seen,
-    average_transactions_per_day = EXCLUDED.average_transactions_per_day,
+    average_transactions_per_day = EXCLUDED.average_number_of_transactions_per_day,
     registered_payment_modes = EXCLUDED.registered_payment_modes,
     usual_transaction_start_hour = EXCLUDED.usual_transaction_start_hour,
     usual_transaction_end_hour = EXCLUDED.usual_transaction_end_hour,
@@ -134,8 +134,20 @@ ON CONFLICT (user_id) DO UPDATE SET
     updated_at = EXCLUDED.updated_at;
 
 -- name: GetUserProfileByUserID :one
-SELECT * FROM user_profile_behavior 
+SELECT
+    user_id,
+    average_transaction_amount,
+    max_transaction_amount_seen,
+    average_number_of_transactions_per_day,
+    registered_payment_modes::text[] AS registered_payment_modes,
+    usual_transaction_start_hour,
+    usual_transaction_end_hour,
+    total_transactions,
+    allowed_transactions,
+    updated_at
+FROM user_profile_behavior
 WHERE user_id = $1;
+
 
 -- name: RebuildProfilesForSeededUsers :exec
 SELECT RebuildAllUserProfiles();
@@ -146,3 +158,26 @@ SELECT EXISTS (
     FROM user_profile_behavior
     WHERE user_id = $1
 );
+
+-- name: CreateEmptyUserProfile :exec
+INSERT INTO user_profile_behavior (
+    user_id,
+    average_transaction_amount,
+    max_transaction_amount_seen,
+    average_number_of_transactions_per_day,
+    registered_payment_modes,
+    usual_transaction_start_hour,
+    usual_transaction_end_hour,
+    updated_at
+)
+VALUES (
+    $1,
+    0,
+    0,
+    0,
+    '{}',
+    NULL,
+    NULL,
+    NOW()
+)
+ON CONFLICT (user_id) DO NOTHING;

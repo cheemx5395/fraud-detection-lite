@@ -98,48 +98,6 @@ func (ns NullTransactionDecision) Value() (driver.Value, error) {
 	return string(ns.TransactionDecision), nil
 }
 
-type TransactionType string
-
-const (
-	TransactionTypeCREDIT TransactionType = "CREDIT"
-	TransactionTypeDEBIT  TransactionType = "DEBIT"
-)
-
-func (e *TransactionType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = TransactionType(s)
-	case string:
-		*e = TransactionType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for TransactionType: %T", src)
-	}
-	return nil
-}
-
-type NullTransactionType struct {
-	TransactionType TransactionType `json:"transaction_type"`
-	Valid           bool            `json:"valid"` // Valid is true if TransactionType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullTransactionType) Scan(value interface{}) error {
-	if value == nil {
-		ns.TransactionType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.TransactionType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullTransactionType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.TransactionType), nil
-}
-
 type TriggerFactors string
 
 const (
@@ -188,10 +146,9 @@ type Transaction struct {
 	ID               int32               `json:"id"`
 	UserID           int32               `json:"user_id"`
 	Amount           int32               `json:"amount"`
-	Type             TransactionType     `json:"type"`
 	Mode             Mode                `json:"mode"`
 	RiskScore        int32               `json:"risk_score"`
-	TriggeredFactors []TriggerFactors    `json:"triggered_factors"`
+	TriggeredFactors []string            `json:"triggered_factors"`
 	Decision         TransactionDecision `json:"decision"`
 	CreatedAt        pgtype.Timestamp    `json:"created_at"`
 	UpdatedAt        pgtype.Timestamp    `json:"updated_at"`
@@ -208,14 +165,14 @@ type User struct {
 }
 
 type UserProfileBehavior struct {
-	UserID                    int32            `json:"user_id"`
-	AverageTransactionAmount  pgtype.Int4      `json:"average_transaction_amount"`
-	MaxTransactionAmountSeen  pgtype.Int4      `json:"max_transaction_amount_seen"`
-	AverageTransactionsPerDay pgtype.Int4      `json:"average_transactions_per_day"`
-	RegisteredPaymentModes    []Mode           `json:"registered_payment_modes"`
-	UsualTransactionStartHour pgtype.Timestamp `json:"usual_transaction_start_hour"`
-	UsualTransactionEndHour   pgtype.Timestamp `json:"usual_transaction_end_hour"`
-	TotalTransactions         int32            `json:"total_transactions"`
-	AllowedTransactions       int32            `json:"allowed_transactions"`
-	UpdatedAt                 pgtype.Timestamp `json:"updated_at"`
+	UserID                            int32            `json:"user_id"`
+	AverageTransactionAmount          pgtype.Int4      `json:"average_transaction_amount"`
+	MaxTransactionAmountSeen          pgtype.Int4      `json:"max_transaction_amount_seen"`
+	AverageNumberOfTransactionsPerDay pgtype.Int4      `json:"average_number_of_transactions_per_day"`
+	RegisteredPaymentModes            []Mode           `json:"registered_payment_modes"`
+	UsualTransactionStartHour         pgtype.Timestamp `json:"usual_transaction_start_hour"`
+	UsualTransactionEndHour           pgtype.Timestamp `json:"usual_transaction_end_hour"`
+	TotalTransactions                 int32            `json:"total_transactions"`
+	AllowedTransactions               int32            `json:"allowed_transactions"`
+	UpdatedAt                         pgtype.Timestamp `json:"updated_at"`
 }

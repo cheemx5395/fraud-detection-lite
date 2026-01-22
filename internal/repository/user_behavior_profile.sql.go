@@ -7,21 +7,76 @@ package repository
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createEmptyUserProfile = `-- name: CreateEmptyUserProfile :exec
+INSERT INTO user_profile_behavior (
+    user_id,
+    average_transaction_amount,
+    max_transaction_amount_seen,
+    average_number_of_transactions_per_day,
+    registered_payment_modes,
+    usual_transaction_start_hour,
+    usual_transaction_end_hour,
+    updated_at
+)
+VALUES (
+    $1,
+    0,
+    0,
+    0,
+    '{}',
+    NULL,
+    NULL,
+    NOW()
+)
+ON CONFLICT (user_id) DO NOTHING
+`
+
+func (q *Queries) CreateEmptyUserProfile(ctx context.Context, userID int32) error {
+	_, err := q.db.Exec(ctx, createEmptyUserProfile, userID)
+	return err
+}
+
 const getUserProfileByUserID = `-- name: GetUserProfileByUserID :one
-SELECT user_id, average_transaction_amount, max_transaction_amount_seen, average_transactions_per_day, registered_payment_modes, usual_transaction_start_hour, usual_transaction_end_hour, total_transactions, allowed_transactions, updated_at FROM user_profile_behavior 
+SELECT
+    user_id,
+    average_transaction_amount,
+    max_transaction_amount_seen,
+    average_number_of_transactions_per_day,
+    registered_payment_modes::text[] AS registered_payment_modes,
+    usual_transaction_start_hour,
+    usual_transaction_end_hour,
+    total_transactions,
+    allowed_transactions,
+    updated_at
+FROM user_profile_behavior
 WHERE user_id = $1
 `
 
-func (q *Queries) GetUserProfileByUserID(ctx context.Context, userID int32) (UserProfileBehavior, error) {
+type GetUserProfileByUserIDRow struct {
+	UserID                            int32            `json:"user_id"`
+	AverageTransactionAmount          pgtype.Int4      `json:"average_transaction_amount"`
+	MaxTransactionAmountSeen          pgtype.Int4      `json:"max_transaction_amount_seen"`
+	AverageNumberOfTransactionsPerDay pgtype.Int4      `json:"average_number_of_transactions_per_day"`
+	RegisteredPaymentModes            []string         `json:"registered_payment_modes"`
+	UsualTransactionStartHour         pgtype.Timestamp `json:"usual_transaction_start_hour"`
+	UsualTransactionEndHour           pgtype.Timestamp `json:"usual_transaction_end_hour"`
+	TotalTransactions                 int32            `json:"total_transactions"`
+	AllowedTransactions               int32            `json:"allowed_transactions"`
+	UpdatedAt                         pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetUserProfileByUserID(ctx context.Context, userID int32) (GetUserProfileByUserIDRow, error) {
 	row := q.db.QueryRow(ctx, getUserProfileByUserID, userID)
-	var i UserProfileBehavior
+	var i GetUserProfileByUserIDRow
 	err := row.Scan(
 		&i.UserID,
 		&i.AverageTransactionAmount,
 		&i.MaxTransactionAmountSeen,
-		&i.AverageTransactionsPerDay,
+		&i.AverageNumberOfTransactionsPerDay,
 		&i.RegisteredPaymentModes,
 		&i.UsualTransactionStartHour,
 		&i.UsualTransactionEndHour,
@@ -55,7 +110,7 @@ INSERT INTO user_profile_behavior (
     user_id,
     average_transaction_amount,
     max_transaction_amount_seen,
-    average_transactions_per_day,
+    average_number_of_transactions_per_day,
     registered_payment_modes,
     usual_transaction_start_hour,
     usual_transaction_end_hour,
@@ -76,7 +131,7 @@ SELECT
     LEAST(
         COUNT(*) FILTER (WHERE decision IN ('ALLOW', 'FLAG')),
         50
-    )::INTEGER AS average_transactions_per_day,
+    )::INTEGER AS average_number_of_transactions_per_day,
 
     ARRAY_AGG(DISTINCT mode)
         FILTER (WHERE decision IN ('ALLOW', 'FLAG')) AS registered_payment_modes,
@@ -100,7 +155,7 @@ WHERE user_id = $1
 ON CONFLICT (user_id) DO UPDATE SET 
     average_transaction_amount = EXCLUDED.average_transaction_amount,
     max_transaction_amount_seen = EXCLUDED.max_transaction_amount_seen,
-    average_transactions_per_day = EXCLUDED.average_transactions_per_day,
+    average_transactions_per_day = EXCLUDED.average_number_of_transactions_per_day,
     registered_payment_modes = EXCLUDED.registered_payment_modes,
     usual_transaction_start_hour = EXCLUDED.usual_transaction_start_hour,
     usual_transaction_end_hour = EXCLUDED.usual_transaction_end_hour,

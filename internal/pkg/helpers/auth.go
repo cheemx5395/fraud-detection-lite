@@ -46,7 +46,7 @@ func GetClaimsFromRequest(r *http.Request) (*jwt.RegisteredClaims, error) {
 		return nil, errors.ErrInvalidToken
 	}
 	token, err := jwt.ParseWithClaims(
-		authHeader,
+		tokenString,
 		&jwt.RegisteredClaims{},
 		func(token *jwt.Token) (interface{}, error) {
 			return []byte(os.Getenv("JWT_SECRET")), nil
