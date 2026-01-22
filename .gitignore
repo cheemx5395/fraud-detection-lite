@@ -1,2 +1,2 @@
 fraud-detection-lite
-.env*
+*.env

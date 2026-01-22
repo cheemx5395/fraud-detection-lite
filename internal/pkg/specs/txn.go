@@ -4,7 +4,6 @@ import "github.com/cheemx5395/fraud-detection-lite/internal/repository"
 
 type CreateTransactionRequest struct {
 	Amount int    `json:"amount"`
-	Type   string `json:"type"`
 	Mode   string `json:"mode"`
 }
 
