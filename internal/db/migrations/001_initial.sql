@@ -3,8 +3,7 @@
 CREATE TYPE mode AS ENUM (
   'UPI',
   'CARD',
-  'NETBANKING',
-  'MOBILE_BANKING'
+  'NETBANKING'
 );
 
 CREATE TYPE trigger_factors AS ENUM (
@@ -21,6 +20,11 @@ CREATE TYPE transaction_decision AS ENUM (
   'MFA_REQUIRED'
 );
 
+CREATE TYPE transaction_type AS ENUM (
+  'CREDIT',
+  'DEBIT'
+);
+
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
@@ -35,11 +39,12 @@ CREATE TABLE user_profile_behavior (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   average_transaction_amount INTEGER,
   max_transaction_amount_seen INTEGER,
-  average_number_of_transactions_per_day INTEGER,
-  profile_confidence INTEGER NOT NULL,
+  average_transactions_per_day INTEGER,
   registered_payment_modes mode[] NOT NULL DEFAULT '{}',
   usual_transaction_start_hour TIMESTAMP,
   usual_transaction_end_hour TIMESTAMP,
+  total_transactions INTEGER NOT NULL DEFAULT 0,
+  allowed_transactions INTEGER NOT NULL DEFAULT 0,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -47,6 +52,7 @@ CREATE TABLE transactions (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   amount INTEGER NOT NULL,
+  type transaction_type NOT NULL,
   mode mode NOT NULL,
   risk_score INTEGER NOT NULL,
   triggered_factors trigger_factors[] NOT NULL DEFAULT '{}',
@@ -68,3 +74,5 @@ DROP TYPE IF EXISTS transaction_decision;
 DROP TYPE IF EXISTS trigger_factors;
 
 DROP TYPE IF EXISTS mode;
+
+DROP TYPE IF EXISTS transaction_type;

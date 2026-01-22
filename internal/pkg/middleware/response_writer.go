@@ -15,9 +15,6 @@ type errorResponse struct {
 type successResponse struct {
 	Data any `json:"data"`
 }
-type contextKey string
-
-const ContextUserIDKey contextKey = "user_id"
 
 func SuccessResponse(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")

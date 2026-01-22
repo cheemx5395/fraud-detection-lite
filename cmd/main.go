@@ -46,7 +46,7 @@ func main() {
 	defer RD.Close()
 
 	// Initializing Router
-	router := api.NewRouter(ctx, DB, RD)
+	router := api.NewRouter(DB, RD)
 
 	// CORS middleware
 	cors := cors.New(constants.CorsOptions)

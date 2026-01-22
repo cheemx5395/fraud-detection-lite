@@ -1,9 +1,7 @@
 package middleware
 
 import (
-	"context"
 	"net/http"
-	"strings"
 
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/errors"
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/helpers"
@@ -13,20 +11,7 @@ import (
 func AuthMiddleware(RD *redis.Client) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" {
-				ErrorResponse(w, http.StatusUnauthorized, errors.ErrEmptyToken)
-				return
-			}
-
-			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-			if tokenString == authHeader {
-				ErrorResponse(w, http.StatusUnauthorized, errors.ErrInvalidToken)
-				return
-			}
-
-			claims, err := helpers.GetClaimsFromToken(tokenString)
+			claims, err := helpers.GetClaimsFromRequest(r)
 			if err != nil {
 				ErrorResponse(w, http.StatusUnauthorized, errors.ErrInvalidToken)
 				return
@@ -47,8 +32,7 @@ func AuthMiddleware(RD *redis.Client) func(http.Handler) http.Handler {
 			}
 
 			// Attach user identity to request context
-			ctx := context.WithValue(r.Context(), ContextUserIDKey, claims.Subject)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			next.ServeHTTP(w, r)
 		})
 	}
 }

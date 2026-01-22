@@ -1,10 +1,8 @@
 package handler
 
 import (
-	"context"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/errors"
@@ -16,7 +14,7 @@ import (
 )
 
 // Signup returns an HTTP handler that signs up user using DB
-func Signup(ctx context.Context, DB *repository.Queries) func(http.ResponseWriter, *http.Request) {
+func Signup(DB *repository.Queries) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		req, err := decodeUserSignupRequest(r)
 		if err != nil {
@@ -58,7 +56,7 @@ func Signup(ctx context.Context, DB *repository.Queries) func(http.ResponseWrite
 }
 
 // Login returns an HTTP handler that logs the user into the system
-func Login(ctx context.Context, DB *repository.Queries) func(http.ResponseWriter, *http.Request) {
+func Login(DB *repository.Queries) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		req, err := decodeUserLoginRequest(r)
 		if err != nil {
@@ -99,19 +97,9 @@ func Login(ctx context.Context, DB *repository.Queries) func(http.ResponseWriter
 	}
 }
 
-func Logout(ctx context.Context, DB *repository.Queries, RD *redis.Client) func(http.ResponseWriter, *http.Request) {
+func Logout(DB *repository.Queries, RD *redis.Client) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			middleware.ErrorResponse(w, http.StatusUnauthorized, errors.ErrEmptyToken)
-			return
-		}
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		if tokenString == authHeader {
-			middleware.ErrorResponse(w, http.StatusUnauthorized, errors.ErrInvalidToken)
-			return
-		}
-		claims, err := helpers.GetClaimsFromToken(tokenString)
+		claims, err := helpers.GetClaimsFromRequest(r)
 		if err != nil {
 			middleware.ErrorResponse(w, http.StatusUnauthorized, errors.ErrInvalidToken)
 			return
@@ -124,7 +112,7 @@ func Logout(ctx context.Context, DB *repository.Queries, RD *redis.Client) func(
 		}
 
 		err = RD.Set(
-			ctx,
+			r.Context(),
 			"blacklist:"+claims.ID,
 			"true",
 			ttl,

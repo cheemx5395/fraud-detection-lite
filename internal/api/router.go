@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/cheemx5395/fraud-detection-lite/internal/api/handler"
@@ -11,18 +10,23 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func NewRouter(ctx context.Context, DB *repository.Queries, RD *redis.Client) *mux.Router {
+func NewRouter(DB *repository.Queries, RD *redis.Client) *mux.Router {
 	router := mux.NewRouter()
 
 	// user registration/login routes
-	router.HandleFunc("/signup", handler.Signup(ctx, DB)).Methods(http.MethodPost)
-	router.HandleFunc("/login", handler.Login(ctx, DB)).Methods(http.MethodPost)
+	router.HandleFunc("/signup", handler.Signup(DB)).Methods(http.MethodPost)
+	router.HandleFunc("/login", handler.Login(DB)).Methods(http.MethodPost)
 
 	// Protected routes
 	protected := router.PathPrefix("/api").Subrouter()
 	protected.Use(middleware.AuthMiddleware(RD))
 
-	protected.HandleFunc("/logout", handler.Logout(ctx, DB, RD)).Methods(http.MethodPost)
+	// Transaction routes
+	protected.HandleFunc("/transactions", handler.PostTransaction(DB)).Methods(http.MethodPost)
+	protected.HandleFunc("/transactions", handler.GetTransactions(DB)).Methods(http.MethodGet)
+
+	// logout handler
+	protected.HandleFunc("/logout", handler.Logout(DB, RD)).Methods(http.MethodPost)
 
 	return router
 }

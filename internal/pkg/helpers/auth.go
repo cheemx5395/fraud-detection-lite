@@ -1,8 +1,10 @@
 package helpers
 
 import (
+	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/errors"
@@ -34,7 +36,15 @@ func MakeJWT(userID int32, tokenSecret string, expiresIn time.Duration) (string,
 	return token.SignedString([]byte(tokenSecret))
 }
 
-func GetClaimsFromToken(authHeader string) (*jwt.RegisteredClaims, error) {
+func GetClaimsFromRequest(r *http.Request) (*jwt.RegisteredClaims, error) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return nil, errors.ErrEmptyToken
+	}
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	if tokenString == authHeader {
+		return nil, errors.ErrInvalidToken
+	}
 	token, err := jwt.ParseWithClaims(
 		authHeader,
 		&jwt.RegisteredClaims{},
@@ -51,4 +61,16 @@ func GetClaimsFromToken(authHeader string) (*jwt.RegisteredClaims, error) {
 
 	claims := token.Claims.(*jwt.RegisteredClaims)
 	return claims, nil
+}
+
+func GetIDFromRequest(r *http.Request) (int32, error) {
+	claims, err := GetClaimsFromRequest(r)
+	if err != nil {
+		return 0, err
+	}
+	id, err := strconv.ParseInt(claims.Subject, 10, 32)
+	if err != nil {
+		return 0, errors.ErrInternalService
+	}
+	return int32(id), nil
 }

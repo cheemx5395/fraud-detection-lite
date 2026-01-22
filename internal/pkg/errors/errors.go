@@ -14,6 +14,10 @@ var (
 	ErrExpiredToken           = errors.New("expired token")
 	ErrLogoutFailed           = errors.New("token blacklisting failed")
 	ErrAuthServiceUnavailable = errors.New("redis down for authentication")
+	ErrAuthInternalService    = errors.New("error in auth package")
+	ErrInternalService        = errors.New("in-built function returning error")
+	ErrTxnBlocked             = errors.New("invalid traansaction blocked")
+	ErrDB                     = errors.New("error in operations on db")
 )
 
 // DB Related variables

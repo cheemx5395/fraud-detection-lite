@@ -13,3 +13,6 @@ migrationsUp:
 
 migrationsDown:
 	@goose -dir internal/db/migrations postgres $(DB_URI) down
+
+redisInteractive:
+	@docker exec -it fraud-detection-lite-redis-1 redis-cli
