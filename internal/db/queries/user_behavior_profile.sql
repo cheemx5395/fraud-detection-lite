@@ -125,7 +125,7 @@ WHERE user_id = $1
 ON CONFLICT (user_id) DO UPDATE SET 
     average_transaction_amount = EXCLUDED.average_transaction_amount,
     max_transaction_amount_seen = EXCLUDED.max_transaction_amount_seen,
-    average_transactions_per_day = EXCLUDED.average_number_of_transactions_per_day,
+    average_number_of_transactions_per_day = EXCLUDED.average_number_of_transactions_per_day,
     registered_payment_modes = EXCLUDED.registered_payment_modes,
     usual_transaction_start_hour = EXCLUDED.usual_transaction_start_hour,
     usual_transaction_end_hour = EXCLUDED.usual_transaction_end_hour,

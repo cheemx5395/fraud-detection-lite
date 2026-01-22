@@ -24,3 +24,7 @@ var (
 var (
 	ErrConnectionFailed = errors.New("error connecting to database")
 )
+
+var (
+	ErrBackgroundJobFailed = errors.New("error in profile updating job")
+)

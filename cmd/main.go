@@ -63,6 +63,10 @@ func main() {
 		}
 	}()
 
+	// cron-job to update profile behavior added
+	updater := worker.NewProfileUpdater(DB)
+	cronInstance := updater.Start(ctx)
+
 	// Graceful shutdown
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
@@ -70,6 +74,9 @@ func main() {
 
 	sig := <-signalChan
 	fmt.Println("Received terminate, gracefully shutting down:", sig)
+
+	ctx = cronInstance.Stop()
+	<-ctx.Done()
 
 	tc, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	server.Shutdown(tc)
