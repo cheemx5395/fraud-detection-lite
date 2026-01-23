@@ -138,15 +138,10 @@ All routes after login are **protected** and require a Bearer token in the `Auth
 
 ```json
 {
-  "data": {
-    "message": "Signup Success!",
-    "id": 1,
-    "name": "name",
-    "email": "name@gmail.com",
-    "mobile": "1234567890",
-    "created_at": "2026-01-22T12:31:10.658367Z",
-    "updated_at": "2026-01-22T12:31:10.658367Z"
-  }
+    "data": {
+        "message": "Signup Success!",
+        "id": 1
+    }
 }
 ```
 
@@ -172,6 +167,30 @@ All routes after login are **protected** and require a Bearer token in the `Auth
     "id": 1,
     "token": "<JWT_TOKEN>"
   }
+}
+```
+
+### Get User
+**GET** `/api/user`
+
+**Headers**
+
+```
+Authorization: Bearer <token>
+```
+
+**Response**
+```json
+{
+    "data": {
+        "message": "User Fetched Successfully",
+        "id": 1,
+        "name": "cheems",
+        "email": "cheems@gmail.com",
+        "mobile": "9356163544",
+        "created_at": "2026-01-23T08:48:46.034184Z",
+        "updated_at": "2026-01-23T08:48:46.034184Z"
+    }
 }
 ```
 
@@ -240,6 +259,42 @@ Authorization: Bearer <token>
       "updated_at": "2026-01-22T12:31:34.429774"
     }
   ]
+}
+```
+
+### Get Transaction
+
+**GET** `/api/transactions/{id}`
+
+**Headers**
+
+```
+Authorization: Bearer <token>
+```
+
+**Response**
+
+```json
+{
+    "data": {
+        "id": 11,
+        "user_id": 1,
+        "amount": 5500,
+        "mode": "CARD",
+        "risk_score": 82,
+        "triggered_factors": [
+            "AMOUNT_DEVIATION",
+            "FREQUENCY_SPIKE",
+            "NEW_MODE"
+        ],
+        "decision": "MFA_REQUIRED",
+        "amount_deviation_score": 100,
+        "frequency_deviation_score": 100,
+        "mode_deviation_score": 60,
+        "time_deviation_score": 5,
+        "created_at": "2026-01-23T08:51:15.683128",
+        "updated_at": "2026-01-23T08:51:15.683128"
+    }
 }
 ```
 

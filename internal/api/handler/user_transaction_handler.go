@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/constants"
@@ -12,6 +13,7 @@ import (
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/middleware"
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/specs"
 	"github.com/cheemx5395/fraud-detection-lite/internal/repository"
+	"github.com/gorilla/mux"
 )
 
 func PostTransaction(DB *repository.Queries) func(w http.ResponseWriter, r *http.Request) {
@@ -73,12 +75,16 @@ func PostTransaction(DB *repository.Queries) func(w http.ResponseWriter, r *http
 		)
 
 		txn, err := DB.CreateTransaction(r.Context(), repository.CreateTransactionParams{
-			UserID:    userID,
-			Amount:    int32(txnParams.Amount),
-			Mode:      repository.Mode(txnParams.Mode),
-			RiskScore: analysis.FinalRiskScore,
-			Column5:   analysis.TriggeredFactors,
-			Decision:  analysis.Decision,
+			UserID:                  userID,
+			Amount:                  int32(txnParams.Amount),
+			Mode:                    repository.Mode(txnParams.Mode),
+			RiskScore:               analysis.FinalRiskScore,
+			Column5:                 analysis.TriggeredFactors,
+			Decision:                analysis.Decision,
+			AmountDeviationScore:    int32(analysis.AmountRisk),
+			FrequencyDeviationScore: int32(analysis.FrequencyRisk),
+			ModeDeviationScore:      int32(analysis.ModeRisk),
+			TimeDeviationScore:      int32(analysis.TimeRisk),
 		})
 		if err != nil {
 			middleware.ErrorResponse(w, http.StatusInternalServerError, err)
@@ -115,6 +121,42 @@ func GetTransactions(DB *repository.Queries) func(w http.ResponseWriter, r *http
 			middleware.ErrorResponse(w, http.StatusInternalServerError, err)
 			return
 		}
-		middleware.SuccessResponse(w, http.StatusOK, txns)
+		var res []specs.CreateTransactionResponse
+		for _, txn := range txns {
+			resTxn := specs.CreateTransactionResponse{
+				TransactionID:    txn.ID,
+				Decision:         txn.Decision,
+				RiskScore:        txn.RiskScore,
+				TriggeredFactors: txn.TriggeredFactors,
+			}
+			res = append(res, resTxn)
+		}
+		middleware.SuccessResponse(w, http.StatusOK, res)
+	}
+}
+
+func GetTransaction(DB *repository.Queries) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		txnStrID := vars["id"]
+
+		id, err := helpers.GetIDFromRequest(r)
+		if err != nil {
+			middleware.ErrorResponse(w, http.StatusUnauthorized, error.ErrInvalidToken)
+			return
+		}
+
+		txnID, err := strconv.ParseInt(txnStrID, 10, 32)
+		if err != nil {
+			middleware.ErrorResponse(w, http.StatusInternalServerError, error.ErrInternalService)
+			return
+		}
+
+		txn, err := DB.GetTransactionByTxnID(r.Context(), repository.GetTransactionByTxnIDParams{
+			ID:     int32(txnID),
+			UserID: id,
+		})
+
+		middleware.SuccessResponse(w, http.StatusOK, txn)
 	}
 }

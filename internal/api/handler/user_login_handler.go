@@ -48,13 +48,8 @@ func Signup(DB *repository.Queries) func(http.ResponseWriter, *http.Request) {
 		}
 
 		res := specs.UserSignupResponse{
-			Message:   "Signup Success!",
-			ID:        user.ID,
-			Name:      user.Name,
-			Email:     user.Email,
-			Mobile:    user.MobileNumber,
-			CreatedAt: user.CreatedAt.Time,
-			UpdatedAt: user.UpdatedAt.Time,
+			Message: "Signup Success!",
+			ID:      user.ID,
 		}
 
 		middleware.SuccessResponse(w, 201, res)
@@ -132,5 +127,33 @@ func Logout(DB *repository.Queries, RD *redis.Client) func(http.ResponseWriter, 
 		middleware.SuccessResponse(w, http.StatusOK, map[string]string{
 			"message": "Logged out successfully",
 		})
+	}
+}
+
+func GetUser(DB *repository.Queries) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := helpers.GetIDFromRequest(r)
+		if err != nil {
+			middleware.ErrorResponse(w, http.StatusUnauthorized, err)
+			return
+		}
+
+		user, err := DB.GetUserByID(r.Context(), id)
+		if err != nil {
+			middleware.ErrorResponse(w, http.StatusUnauthorized, errors.ErrUserNotFound)
+			return
+		}
+
+		res := specs.UserResponse{
+			Message:   "User Fetched Successfully",
+			ID:        user.ID,
+			Name:      user.Name,
+			Email:     user.Email,
+			Mobile:    user.MobileNumber,
+			CreatedAt: user.CreatedAt.Time,
+			UpdatedAt: user.UpdatedAt.Time,
+		}
+
+		middleware.SuccessResponse(w, http.StatusOK, res)
 	}
 }

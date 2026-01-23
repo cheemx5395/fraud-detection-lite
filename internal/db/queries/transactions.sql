@@ -12,6 +12,10 @@ INSERT INTO transactions (
     risk_score,
     triggered_factors,
     decision,
+    amount_deviation_score,
+    frequency_deviation_score,
+    mode_deviation_score,
+    time_deviation_score,
     created_at,
     updated_at
 ) VALUES (
@@ -21,6 +25,10 @@ INSERT INTO transactions (
     $4,
     $5::text[]::trigger_factors[],   
     $6,
+    $7,
+    $8,
+    $9,
+    $10,
     NOW(),
     NOW()
 )
@@ -46,6 +54,10 @@ SELECT * FROM transactions
 WHERE user_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
+
+-- name: GetTransactionByTxnID :one
+SELECT * FROM transactions
+WHERE id = $1 AND user_id = $2;
 
 -- name: GetDailyTransactionStats :one
 SELECT

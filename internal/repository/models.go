@@ -143,15 +143,19 @@ func (ns NullTriggerFactors) Value() (driver.Value, error) {
 }
 
 type Transaction struct {
-	ID               int32               `json:"id"`
-	UserID           int32               `json:"user_id"`
-	Amount           int32               `json:"amount"`
-	Mode             Mode                `json:"mode"`
-	RiskScore        int32               `json:"risk_score"`
-	TriggeredFactors []string            `json:"triggered_factors"`
-	Decision         TransactionDecision `json:"decision"`
-	CreatedAt        pgtype.Timestamp    `json:"created_at"`
-	UpdatedAt        pgtype.Timestamp    `json:"updated_at"`
+	ID                      int32               `json:"id"`
+	UserID                  int32               `json:"user_id"`
+	Amount                  int32               `json:"amount"`
+	Mode                    Mode                `json:"mode"`
+	RiskScore               int32               `json:"risk_score"`
+	TriggeredFactors        []string            `json:"triggered_factors"`
+	Decision                TransactionDecision `json:"decision"`
+	AmountDeviationScore    int32               `json:"amount_deviation_score"`
+	FrequencyDeviationScore int32               `json:"frequency_deviation_score"`
+	ModeDeviationScore      int32               `json:"mode_deviation_score"`
+	TimeDeviationScore      int32               `json:"time_deviation_score"`
+	CreatedAt               pgtype.Timestamp    `json:"created_at"`
+	UpdatedAt               pgtype.Timestamp    `json:"updated_at"`
 }
 
 type User struct {

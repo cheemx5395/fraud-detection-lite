@@ -52,6 +52,10 @@ INSERT INTO transactions (
     risk_score,
     triggered_factors,
     decision,
+    amount_deviation_score,
+    frequency_deviation_score,
+    mode_deviation_score,
+    time_deviation_score,
     created_at,
     updated_at
 ) VALUES (
@@ -61,6 +65,10 @@ INSERT INTO transactions (
     $4,
     $5::text[]::trigger_factors[],   
     $6,
+    $7,
+    $8,
+    $9,
+    $10,
     NOW(),
     NOW()
 )
@@ -77,12 +85,16 @@ RETURNING
 `
 
 type CreateTransactionParams struct {
-	UserID    int32               `json:"user_id"`
-	Amount    int32               `json:"amount"`
-	Mode      Mode                `json:"mode"`
-	RiskScore int32               `json:"risk_score"`
-	Column5   []string            `json:"column_5"`
-	Decision  TransactionDecision `json:"decision"`
+	UserID                  int32               `json:"user_id"`
+	Amount                  int32               `json:"amount"`
+	Mode                    Mode                `json:"mode"`
+	RiskScore               int32               `json:"risk_score"`
+	Column5                 []string            `json:"column_5"`
+	Decision                TransactionDecision `json:"decision"`
+	AmountDeviationScore    int32               `json:"amount_deviation_score"`
+	FrequencyDeviationScore int32               `json:"frequency_deviation_score"`
+	ModeDeviationScore      int32               `json:"mode_deviation_score"`
+	TimeDeviationScore      int32               `json:"time_deviation_score"`
 }
 
 type CreateTransactionRow struct {
@@ -105,6 +117,10 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		arg.RiskScore,
 		arg.Column5,
 		arg.Decision,
+		arg.AmountDeviationScore,
+		arg.FrequencyDeviationScore,
+		arg.ModeDeviationScore,
+		arg.TimeDeviationScore,
 	)
 	var i CreateTransactionRow
 	err := row.Scan(
@@ -122,7 +138,7 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 }
 
 const getAllTransactionsByUserID = `-- name: GetAllTransactionsByUserID :many
-SELECT id, user_id, amount, mode, risk_score, triggered_factors, decision, created_at, updated_at FROM transactions
+SELECT id, user_id, amount, mode, risk_score, triggered_factors, decision, amount_deviation_score, frequency_deviation_score, mode_deviation_score, time_deviation_score, created_at, updated_at FROM transactions
 WHERE user_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -151,6 +167,10 @@ func (q *Queries) GetAllTransactionsByUserID(ctx context.Context, arg GetAllTran
 			&i.RiskScore,
 			&i.TriggeredFactors,
 			&i.Decision,
+			&i.AmountDeviationScore,
+			&i.FrequencyDeviationScore,
+			&i.ModeDeviationScore,
+			&i.TimeDeviationScore,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -190,6 +210,37 @@ func (q *Queries) GetDailyTransactionStats(ctx context.Context, userID int32) (G
 		&i.AverageAmount,
 		&i.FirstTransactionTime,
 		&i.LastTransactionTime,
+	)
+	return i, err
+}
+
+const getTransactionByTxnID = `-- name: GetTransactionByTxnID :one
+SELECT id, user_id, amount, mode, risk_score, triggered_factors, decision, amount_deviation_score, frequency_deviation_score, mode_deviation_score, time_deviation_score, created_at, updated_at FROM transactions
+WHERE id = $1 AND user_id = $2
+`
+
+type GetTransactionByTxnIDParams struct {
+	ID     int32 `json:"id"`
+	UserID int32 `json:"user_id"`
+}
+
+func (q *Queries) GetTransactionByTxnID(ctx context.Context, arg GetTransactionByTxnIDParams) (Transaction, error) {
+	row := q.db.QueryRow(ctx, getTransactionByTxnID, arg.ID, arg.UserID)
+	var i Transaction
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Amount,
+		&i.Mode,
+		&i.RiskScore,
+		&i.TriggeredFactors,
+		&i.Decision,
+		&i.AmountDeviationScore,
+		&i.FrequencyDeviationScore,
+		&i.ModeDeviationScore,
+		&i.TimeDeviationScore,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

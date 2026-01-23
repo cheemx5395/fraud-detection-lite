@@ -12,8 +12,14 @@ type UserSignupRequest struct {
 	Password string `json:"password"`
 }
 
-// User struct represents details of a user profile.
+// UserSignupResponse to represent signup response
 type UserSignupResponse struct {
+	Message string `json:"message"`
+	ID      int32  `json:"id"`
+}
+
+// User struct represents details of a user profile.
+type UserResponse struct {
 	Message   string    `json:"message"`
 	ID        int32     `json:"id"`
 	Name      string    `json:"name"`

@@ -51,6 +51,10 @@ CREATE TABLE transactions (
   risk_score INTEGER NOT NULL,
   triggered_factors trigger_factors[] NOT NULL DEFAULT '{}',
   decision transaction_decision NOT NULL,
+  amount_deviation_score INTEGER NOT NULL,
+  frequency_deviation_score INTEGER NOT NULL,
+  mode_deviation_score INTEGER NOT NULL,
+  time_deviation_score INTEGER NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
