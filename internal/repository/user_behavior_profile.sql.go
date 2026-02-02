@@ -11,35 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createEmptyUserProfile = `-- name: CreateEmptyUserProfile :exec
-INSERT INTO user_profile_behavior (
-    user_id,
-    average_transaction_amount,
-    max_transaction_amount_seen,
-    average_number_of_transactions_per_day,
-    registered_payment_modes,
-    usual_transaction_start_hour,
-    usual_transaction_end_hour,
-    updated_at
-)
-VALUES (
-    $1,
-    0,
-    0,
-    0,
-    '{}',
-    NULL,
-    NULL,
-    NOW()
-)
-ON CONFLICT (user_id) DO NOTHING
-`
-
-func (q *Queries) CreateEmptyUserProfile(ctx context.Context, userID int32) error {
-	_, err := q.db.Exec(ctx, createEmptyUserProfile, userID)
-	return err
-}
-
 const getUserProfileByUserID = `-- name: GetUserProfileByUserID :one
 SELECT
     user_id,
@@ -58,8 +29,8 @@ WHERE user_id = $1
 
 type GetUserProfileByUserIDRow struct {
 	UserID                            int32            `json:"user_id"`
-	AverageTransactionAmount          pgtype.Int4      `json:"average_transaction_amount"`
-	MaxTransactionAmountSeen          pgtype.Int4      `json:"max_transaction_amount_seen"`
+	AverageTransactionAmount          pgtype.Float8    `json:"average_transaction_amount"`
+	MaxTransactionAmountSeen          pgtype.Float8    `json:"max_transaction_amount_seen"`
 	AverageNumberOfTransactionsPerDay pgtype.Int4      `json:"average_number_of_transactions_per_day"`
 	RegisteredPaymentModes            []string         `json:"registered_payment_modes"`
 	UsualTransactionStartHour         pgtype.Timestamp `json:"usual_transaction_start_hour"`
@@ -96,16 +67,7 @@ func (q *Queries) RebuildAllUserProfiles(ctx context.Context) error {
 	return err
 }
 
-const rebuildProfilesForSeededUsers = `-- name: RebuildProfilesForSeededUsers :exec
-SELECT RebuildAllUserProfiles()
-`
-
-func (q *Queries) RebuildProfilesForSeededUsers(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, rebuildProfilesForSeededUsers)
-	return err
-}
-
-const rebuildUserProfileByID = `-- name: RebuildUserProfileByID :exec
+const upsertUserProfileByUserID = `-- name: UpsertUserProfileByUserID :exec
 INSERT INTO user_profile_behavior (
     user_id,
     average_transaction_amount,
@@ -118,41 +80,45 @@ INSERT INTO user_profile_behavior (
     allowed_transactions,
     updated_at
 )
-SELECT 
-    $1::INTEGER AS user_id,
+SELECT
+    u.id AS user_id,
 
     COALESCE(
-        AVG(amount) FILTER (WHERE decision IN ('ALLOW', 'FLAG')),
+        AVG(t.amount) FILTER (WHERE t.decision IN ('ALLOW', 'FLAG')),
         0
     )::INTEGER AS average_transaction_amount,
 
-    COALESCE(MAX(amount), 0)::INTEGER AS max_transaction_amount_seen,
+    COALESCE(MAX(t.amount), 0)::INTEGER AS max_transaction_amount_seen,
 
     LEAST(
-        COUNT(*) FILTER (WHERE decision IN ('ALLOW', 'FLAG')),
+        COUNT(*) FILTER (WHERE t.decision IN ('ALLOW', 'FLAG')),
         50
     )::INTEGER AS average_number_of_transactions_per_day,
 
-    ARRAY_AGG(DISTINCT mode)
-        FILTER (WHERE decision IN ('ALLOW', 'FLAG')) AS registered_payment_modes,
+    COALESCE(
+        ARRAY_AGG(DISTINCT t.mode) FILTER (WHERE t.decision IN ('ALLOW', 'FLAG')),
+        ARRAY[]::text[]
+    ) AS registered_payment_modes,
 
-    MIN(created_at)
-        FILTER (WHERE decision IN ('ALLOW', 'FLAG')) AS usual_transaction_start_hour,
+    MIN(t.created_at)
+        FILTER (WHERE t.decision IN ('ALLOW', 'FLAG')) AS usual_transaction_start_hour,
 
-    MAX(created_at)
-        FILTER (WHERE decision IN ('ALLOW', 'FLAG')) AS usual_transaction_end_hour,
+    MAX(t.created_at)
+        FILTER (WHERE t.decision IN ('ALLOW', 'FLAG')) AS usual_transaction_end_hour,
 
-    COUNT(*) AS total_transactions,
+    COUNT(t.id) AS total_transactions,
 
-    COUNT(*) FILTER (WHERE decision IN ('ALLOW', 'FLAG')) AS allowed_transactions,
+    COUNT(t.id) FILTER (WHERE t.decision IN ('ALLOW', 'FLAG')) AS allowed_transactions,
 
     NOW() AS updated_at
+FROM users u
+LEFT JOIN transactions t
+    ON t.user_id = u.id
+    AND t.created_at < CURRENT_DATE
+WHERE u.id = $1
+GROUP BY u.id
 
-FROM transactions
-WHERE user_id = $1
-  AND created_at < CURRENT_DATE
-
-ON CONFLICT (user_id) DO UPDATE SET 
+ON CONFLICT (user_id) DO UPDATE SET
     average_transaction_amount = EXCLUDED.average_transaction_amount,
     max_transaction_amount_seen = EXCLUDED.max_transaction_amount_seen,
     average_number_of_transactions_per_day = EXCLUDED.average_number_of_transactions_per_day,
@@ -164,12 +130,12 @@ ON CONFLICT (user_id) DO UPDATE SET
     updated_at = EXCLUDED.updated_at
 `
 
-func (q *Queries) RebuildUserProfileByID(ctx context.Context, dollar_1 int32) error {
-	_, err := q.db.Exec(ctx, rebuildUserProfileByID, dollar_1)
+func (q *Queries) UpsertUserProfileByUserID(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, upsertUserProfileByUserID, id)
 	return err
 }
 
-const seedUserBehaviorProfiles = `-- name: SeedUserBehaviorProfiles :exec
+const upsertUserProfileFromProfile = `-- name: UpsertUserProfileFromProfile :exec
 INSERT INTO user_profile_behavior (
     user_id,
     average_transaction_amount,
@@ -178,37 +144,57 @@ INSERT INTO user_profile_behavior (
     registered_payment_modes,
     usual_transaction_start_hour,
     usual_transaction_end_hour,
+    total_transactions,
+    allowed_transactions,
     updated_at
 )
-SELECT
-    u.id,
-    0,
-    0,
-    0,
-    '{}',
-    NULL,
-    NULL,
+VALUES (
+    $1,  -- user_id
+    $2,  -- average_transaction_amount
+    $3,  -- max_transaction_amount_seen
+    $4,  -- average_number_of_transactions_per_day
+    $5,  -- registered_payment_modes
+    $6,  -- usual_transaction_start_hour
+    $7,  -- usual_transaction_end_hour
+    $8,  -- total_transactions
+    $9,  -- allowed_transactions
     NOW()
-FROM users u
-ON CONFLICT (user_id) DO NOTHING
+)
+ON CONFLICT (user_id) DO UPDATE SET
+    average_transaction_amount = EXCLUDED.average_transaction_amount,
+    max_transaction_amount_seen = EXCLUDED.max_transaction_amount_seen,
+    average_number_of_transactions_per_day = EXCLUDED.average_number_of_transactions_per_day,
+    registered_payment_modes = EXCLUDED.registered_payment_modes,
+    usual_transaction_start_hour = EXCLUDED.usual_transaction_start_hour,
+    usual_transaction_end_hour = EXCLUDED.usual_transaction_end_hour,
+    total_transactions = EXCLUDED.total_transactions,
+    allowed_transactions = EXCLUDED.allowed_transactions,
+    updated_at = NOW()
 `
 
-func (q *Queries) SeedUserBehaviorProfiles(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, seedUserBehaviorProfiles)
-	return err
+type UpsertUserProfileFromProfileParams struct {
+	UserID                            int32            `json:"user_id"`
+	AverageTransactionAmount          pgtype.Float8    `json:"average_transaction_amount"`
+	MaxTransactionAmountSeen          pgtype.Float8    `json:"max_transaction_amount_seen"`
+	AverageNumberOfTransactionsPerDay pgtype.Int4      `json:"average_number_of_transactions_per_day"`
+	RegisteredPaymentModes            []Mode           `json:"registered_payment_modes"`
+	UsualTransactionStartHour         pgtype.Timestamp `json:"usual_transaction_start_hour"`
+	UsualTransactionEndHour           pgtype.Timestamp `json:"usual_transaction_end_hour"`
+	TotalTransactions                 int32            `json:"total_transactions"`
+	AllowedTransactions               int32            `json:"allowed_transactions"`
 }
 
-const userProfileExists = `-- name: UserProfileExists :one
-SELECT EXISTS (
-    SELECT 1
-    FROM user_profile_behavior
-    WHERE user_id = $1
-)
-`
-
-func (q *Queries) UserProfileExists(ctx context.Context, userID int32) (bool, error) {
-	row := q.db.QueryRow(ctx, userProfileExists, userID)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
+func (q *Queries) UpsertUserProfileFromProfile(ctx context.Context, arg UpsertUserProfileFromProfileParams) error {
+	_, err := q.db.Exec(ctx, upsertUserProfileFromProfile,
+		arg.UserID,
+		arg.AverageTransactionAmount,
+		arg.MaxTransactionAmountSeen,
+		arg.AverageNumberOfTransactionsPerDay,
+		arg.RegisteredPaymentModes,
+		arg.UsualTransactionStartHour,
+		arg.UsualTransactionEndHour,
+		arg.TotalTransactions,
+		arg.AllowedTransactions,
+	)
+	return err
 }

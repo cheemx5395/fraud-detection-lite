@@ -1,11 +1,11 @@
 package handler
 
 import (
-	"log"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/constants"
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/errors"
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/helpers"
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/middleware"
@@ -40,11 +40,6 @@ func Signup(DB *repository.Queries) func(http.ResponseWriter, *http.Request) {
 		if err != nil {
 			middleware.ErrorResponse(w, http.StatusConflict, err)
 			return
-		}
-
-		err = DB.CreateEmptyUserProfile(r.Context(), user.ID)
-		if err != nil {
-			log.Println(err)
 		}
 
 		res := specs.UserSignupResponse{
@@ -82,15 +77,14 @@ func Login(DB *repository.Queries) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		token, err := helpers.MakeJWT(user.ID, os.Getenv("JWT_SECRET"), 24*time.Hour)
+		token, err := helpers.MakeJWT(user.ID, user.Name, user.Email, os.Getenv("JWT_SECRET"), constants.TokenExpiryDuration)
 		if err != nil {
 			middleware.ErrorResponse(w, http.StatusInternalServerError, errors.ErrGenerateToken)
 			return
 		}
 
 		res := specs.UserLoginResponse{
-			Message: "Login Successfully",
-			ID:      user.ID,
+			Message: "Logged in Successfully",
 			Token:   token,
 		}
 
@@ -127,33 +121,5 @@ func Logout(DB *repository.Queries, RD *redis.Client) func(http.ResponseWriter, 
 		middleware.SuccessResponse(w, http.StatusOK, map[string]string{
 			"message": "Logged out successfully",
 		})
-	}
-}
-
-func GetUser(DB *repository.Queries) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := helpers.GetIDFromRequest(r)
-		if err != nil {
-			middleware.ErrorResponse(w, http.StatusUnauthorized, err)
-			return
-		}
-
-		user, err := DB.GetUserByID(r.Context(), id)
-		if err != nil {
-			middleware.ErrorResponse(w, http.StatusUnauthorized, errors.ErrUserNotFound)
-			return
-		}
-
-		res := specs.UserResponse{
-			Message:   "User Fetched Successfully",
-			ID:        user.ID,
-			Name:      user.Name,
-			Email:     user.Email,
-			Mobile:    user.MobileNumber,
-			CreatedAt: user.CreatedAt.Time,
-			UpdatedAt: user.UpdatedAt.Time,
-		}
-
-		middleware.SuccessResponse(w, http.StatusOK, res)
 	}
 }

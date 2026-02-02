@@ -2,6 +2,7 @@ package constants
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/rs/cors"
 )
@@ -11,6 +12,11 @@ import (
 const (
 	EmailRegex  = "^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$"
 	MobileRegex = "^([+]\\d{2})?\\d{10}$"
+
+	TokenExpiryDuration = 24 * time.Hour
+
+	DefaultTransactionsLimit  = 20
+	DefaultTransactionsOffset = 0
 )
 
 // CorsOptions defines the CORS (Cross-Origin Resource Sharing) configuration.

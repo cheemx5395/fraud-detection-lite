@@ -69,7 +69,7 @@ INSERT INTO transactions (
     $8,
     $9,
     $10,
-    NOW(),
+    $11,
     NOW()
 )
 RETURNING
@@ -86,7 +86,7 @@ RETURNING
 
 type CreateTransactionParams struct {
 	UserID                  int32               `json:"user_id"`
-	Amount                  int32               `json:"amount"`
+	Amount                  float64             `json:"amount"`
 	Mode                    Mode                `json:"mode"`
 	RiskScore               int32               `json:"risk_score"`
 	Column5                 []string            `json:"column_5"`
@@ -95,12 +95,13 @@ type CreateTransactionParams struct {
 	FrequencyDeviationScore int32               `json:"frequency_deviation_score"`
 	ModeDeviationScore      int32               `json:"mode_deviation_score"`
 	TimeDeviationScore      int32               `json:"time_deviation_score"`
+	CreatedAt               pgtype.Timestamp    `json:"created_at"`
 }
 
 type CreateTransactionRow struct {
 	ID               int32               `json:"id"`
 	UserID           int32               `json:"user_id"`
-	Amount           int32               `json:"amount"`
+	Amount           float64             `json:"amount"`
 	Mode             Mode                `json:"mode"`
 	RiskScore        int32               `json:"risk_score"`
 	TriggeredFactors []string            `json:"triggered_factors"`
@@ -121,6 +122,7 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		arg.FrequencyDeviationScore,
 		arg.ModeDeviationScore,
 		arg.TimeDeviationScore,
+		arg.CreatedAt,
 	)
 	var i CreateTransactionRow
 	err := row.Scan(

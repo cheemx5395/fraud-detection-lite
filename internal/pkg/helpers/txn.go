@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"slices"
 	"time"
 
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/constants"
@@ -11,10 +12,12 @@ import (
 // CalculateProfileConfidence calculates the user's profile confidence score
 // Formula: (allowed_transactions / total_transactions) * 100
 func CalculateProfileConfidence(profile *repository.UserProfileBehavior) float64 {
-	if profile.AllowedTransactions >= constants.MinTransactionsForProfiling {
-		return 100.0
+	if profile.AllowedTransactions <= 0 {
+		return 0.0
 	}
-	return (float64(profile.AllowedTransactions) / float64(constants.MinTransactionsForProfiling)) * 100.0
+
+	confidence := (float64(profile.AllowedTransactions) / 50.0) * 100.0
+	return min(confidence, 100.0)
 }
 
 // CalculateAmountDeviationRisk calculates risk based on how
@@ -27,17 +30,16 @@ func CalculateAmountDeviationRisk(transactionAmount int32, profile *repository.U
 		}
 
 		// comparing with maximum transaction seen till now
-		if transactionAmount > profile.MaxTransactionAmountSeen.Int32 {
-			ratio := float64(transactionAmount) / float64(profile.MaxTransactionAmountSeen.Int32)
+		if transactionAmount > int32(profile.MaxTransactionAmountSeen.Float64) {
+			ratio := float64(transactionAmount) / float64(profile.MaxTransactionAmountSeen.Float64)
 
 			risk := 20.0 + (ratio-1.0)*30.0
 			return min(risk, 100.0)
 		}
-		// when transaction is shorter than max allowed transaction
-		return 15.0
+		return 10.0
 	}
 
-	avgAmount := float64(profile.AverageTransactionAmount.Int32)
+	avgAmount := float64(profile.AverageTransactionAmount.Float64)
 	txAmount := float64(transactionAmount)
 
 	// Calculate deviation ratio
@@ -45,7 +47,7 @@ func CalculateAmountDeviationRisk(transactionAmount int32, profile *repository.U
 
 	var risk float64
 	if ratio <= 1.0 {
-		risk = 5.0
+		risk = 0.0
 	} else if ratio <= constants.AmountDeviationModerate {
 		risk = 5.0 + ((ratio-1.0)/(constants.AmountDeviationModerate-1.0))*20.0
 	} else if ratio <= constants.AmountDeviationHigh {
@@ -91,7 +93,7 @@ func CalculateFrequencySpikeRisk(
 	var risk float64
 	switch {
 	case ratio <= 1.5:
-		risk = 5.0 + (ratio-1.0)*10.0
+		risk = 0.0
 	case ratio <= 3.0:
 		risk = 15.0 + ((ratio-1.5)/1.5)*35.0
 	default:
@@ -105,10 +107,8 @@ func CalculateFrequencySpikeRisk(
 // that's not in their registered modes
 func CalculateModeDeviationRisk(transactionMode repository.Mode, profile *repository.UserProfileBehavior) float64 {
 	// check if mode is registered
-	for _, registeredMode := range profile.RegisteredPaymentModes {
-		if registeredMode == transactionMode {
-			return 0.0
-		}
+	if slices.Contains(profile.RegisteredPaymentModes, transactionMode) {
+		return 0.0
 	}
 
 	// New Mode detected
@@ -206,8 +206,21 @@ func CalculateAggregateRiskScore(
 // Formula: dampened_risk = raw_risk * (1 - (profile_confidence / 200))
 func DampenRiskWithProfileConfidence(rawRiskScore float64, profileConfidence float64) float64 {
 	dampeningFactor := 1.0 - (profileConfidence / 200.0)
+
+	// cap trust benefit
+	if dampeningFactor < 0.5 {
+		dampeningFactor = 0.5
+	}
+
 	dampenedRisk := rawRiskScore * dampeningFactor
-	return max(dampenedRisk, 0.0)
+
+	// dynamic floor: 10% of raw risk
+	minFloor := rawRiskScore * 0.1
+	if dampenedRisk < minFloor {
+		return minFloor
+	}
+
+	return dampenedRisk
 }
 
 // DetermineTriggeredFactors identifies which factors exceeded their thresholds
@@ -253,6 +266,41 @@ func DetermineTransactionDecision(finalRiskScore float64, profile *repository.Us
 		return repository.TransactionDecisionMFAREQUIRED
 	}
 	return repository.TransactionDecisionBLOCK
+}
+
+func AnalyzeBulkTransactions(
+	req *specs.CreateBulkTransactionRequest,
+	profile *repository.UserProfileBehavior,
+	recentTransactionCount int,
+) specs.FraudAnalysisResult {
+	amountRisk := CalculateAmountDeviationRisk(int32(req.Amount), profile)
+	frequencyRisk := CalculateFrequencySpikeRisk(profile, recentTransactionCount)
+	modeRisk := CalculateModeDeviationRisk(repository.Mode(req.Mode), profile)
+	timeRisk := CalculateTimeAnomalyRisk(req.CreatedAt, profile)
+
+	rawRiskScore := CalculateAggregateRiskScore(amountRisk, frequencyRisk, modeRisk, timeRisk)
+
+	profileConfidence := CalculateProfileConfidence(profile)
+
+	finalRiskScore := DampenRiskWithProfileConfidence(rawRiskScore, profileConfidence)
+
+	triggeredFactors := DetermineTriggeredFactors(amountRisk, frequencyRisk, modeRisk, timeRisk)
+
+	decision := DetermineTransactionDecision(finalRiskScore, profile)
+
+	return specs.FraudAnalysisResult{
+		Message:           "analysis result",
+		Decision:          decision,
+		FinalRiskScore:    int32(finalRiskScore),
+		RawRiskScore:      rawRiskScore,
+		ProfileConfidence: profileConfidence,
+		TriggeredFactors:  triggeredFactors,
+		AmountRisk:        amountRisk,
+		FrequencyRisk:     frequencyRisk,
+		ModeRisk:          modeRisk,
+		TimeRisk:          timeRisk,
+	}
+
 }
 
 // AnalyzeTransaction performs complete fraud analysis and returns specs.FraudAnalysisResult

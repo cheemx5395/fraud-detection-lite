@@ -2,6 +2,8 @@ package specs
 
 import (
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // UserSignupRequest struct represents a request to create a user
@@ -38,6 +40,12 @@ type UserLoginRequest struct {
 // UserLoginResponse struct represents response to send to successful login of user
 type UserLoginResponse struct {
 	Message string `json:"message"`
-	ID      int32  `json:"id"`
 	Token   string `json:"token"`
+}
+
+type UserTokenClaims struct {
+	UserID int32  `json:"user_id"`
+	Name   string `json:"name"`
+	Email  string `json:"email"`
+	jwt.RegisteredClaims
 }

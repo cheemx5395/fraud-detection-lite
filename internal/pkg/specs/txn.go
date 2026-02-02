@@ -1,10 +1,20 @@
 package specs
 
-import "github.com/cheemx5395/fraud-detection-lite/internal/repository"
+import (
+	"time"
+
+	"github.com/cheemx5395/fraud-detection-lite/internal/repository"
+)
 
 type CreateTransactionRequest struct {
 	Amount int    `json:"amount"`
 	Mode   string `json:"mode"`
+}
+
+type CreateBulkTransactionRequest struct {
+	Amount    int       `json:"amount"`
+	Mode      string    `json:"mode"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type FraudAnalysisResult struct {
@@ -25,4 +35,5 @@ type CreateTransactionResponse struct {
 	Decision         repository.TransactionDecision `json:"decision"`
 	RiskScore        int32                          `json:"risk_score"`
 	TriggeredFactors []string                       `json:"triggered_factors"`
+	CreatedAt        time.Time                      `json:"created_at"`
 }

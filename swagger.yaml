@@ -1,0 +1,147 @@
+openapi: 3.0.3
+info:
+  title: Fraud Detection Lite API
+  version: 1.0.0
+  description: Fraud Detection and Risk Evaluation Service
+
+servers:
+  - url: http://localhost:8080
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []
+
+paths:
+  /signup:
+    post:
+      summary: User signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, mobile, password]
+              properties:
+                name: { type: string }
+                email: { type: string }
+                mobile: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          description: Signup successful
+
+  /login:
+    post:
+      summary: User login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          description: Login successful
+
+  /api/transactions:
+    post:
+      summary: Create transaction
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, mode]
+              properties:
+                amount: { type: number }
+                mode:
+                  type: string
+                  enum: [UPI, CARD, NETBANKING]
+      responses:
+        "200":
+          description: Transaction evaluated
+
+    get:
+      summary: Get paginated transactions
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer }
+        - in: query
+          name: offset
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Transaction list
+
+  /api/transactions/{id}:
+    get:
+      summary: Get transaction by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Transaction details
+
+  /api/transactions/upload:
+    post:
+      summary: Upload bulk transactions
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Bulk job created
+
+  /api/transactions/upload/{job_id}/status:
+    get:
+      summary: Get bulk job status
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Job status
+
+  /api/logout:
+    post:
+      summary: Logout user
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Logout successful

@@ -29,7 +29,7 @@ INSERT INTO transactions (
     $8,
     $9,
     $10,
-    NOW(),
+    $11,
     NOW()
 )
 RETURNING

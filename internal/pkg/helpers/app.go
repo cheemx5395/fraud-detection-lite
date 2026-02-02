@@ -1,6 +1,8 @@
 package helpers
 
-import "sync"
+import (
+	"sync"
+)
 
 var (
 	TokenList      = make(map[string]struct{})

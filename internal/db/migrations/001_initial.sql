@@ -32,8 +32,8 @@ CREATE TABLE users (
 
 CREATE TABLE user_profile_behavior (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  average_transaction_amount INTEGER,
-  max_transaction_amount_seen INTEGER,
+  average_transaction_amount DOUBLE PRECISION,
+  max_transaction_amount_seen DOUBLE PRECISION,
   average_number_of_transactions_per_day INTEGER,
   registered_payment_modes mode[] NOT NULL DEFAULT '{}',
   usual_transaction_start_hour TIMESTAMP,
@@ -46,7 +46,7 @@ CREATE TABLE user_profile_behavior (
 CREATE TABLE transactions (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  amount INTEGER NOT NULL,
+  amount DOUBLE PRECISION NOT NULL,
   mode mode NOT NULL,
   risk_score INTEGER NOT NULL,
   triggered_factors trigger_factors[] NOT NULL DEFAULT '{}',

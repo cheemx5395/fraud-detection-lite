@@ -1,42 +1,29 @@
 # Fraud Detection Lite
 
-Fraud Detection Lite is a backend service that simulates a **fraud risk evaluation engine** acting as an intermediary between **transaction initiation** and **final acknowledgement**.
-It evaluates transactions in real time and classifies them based on risk using behavior-based heuristics.
+Fraud Detection Lite is a backend service that simulates a **fraud risk evaluation engine** acting as an intermediary between **transaction initiation** and **final acknowledgement**. It evaluates transactions in real time and classifies them based on risk using behavior-based heuristics.
 
 ## Overview
 
 Each transaction is evaluated using **four fraud detection factors**:
 
-1. **Amount Deviation**
-   Detects sudden deviations from the user’s usual transaction amount.
+1. **Amount Deviation** - Detects sudden deviations from the user's usual transaction amount.
 
-2. **Frequency Spike**
-   Detects abnormal spikes in transaction frequency within a short time window.
+2. **Frequency Spike** - Detects abnormal spikes in transaction frequency within a short time window.
 
-3. **New Mode**
-   Detects usage of a payment mode that the user has not used before.
+3. **New Mode** - Detects usage of a payment mode that the user has not used before.
 
-4. **Time Anomaly**
-   Detects transactions occurring at unusual hours compared to historical behavior.
+4. **Time Anomaly** - Detects transactions occurring at unusual hours compared to historical behavior.
 
-Each factor contributes to a **risk score**.
-The cumulative risk score is then **dampened using a profile confidence score**, which represents how trustworthy a user is based on their historical transaction behavior.
+Each factor contributes to a **risk score**. The cumulative risk score is then **dampened using a profile confidence score**, which represents how trustworthy a user is based on their historical transaction behavior.
 
 ## Transaction Decisions
 
 Based on the final risk score, a transaction is classified into one of the following categories:
 
-* **ALLOW**
-  Transaction proceeds normally.
-
-* **FLAG**
-  Transaction is marked as potentially suspicious.
-
-* **MFA_REQUIRED**
-  Transaction requires an additional authentication step.
-
-* **BLOCK**
-  Transaction is rejected entirely.
+* **ALLOW** - Transaction proceeds normally.
+* **FLAG** - Transaction is marked as potentially suspicious.
+* **MFA_REQUIRED** - Transaction requires an additional authentication step.
+* **BLOCK** - Transaction is rejected entirely.
 
 ## Transaction Modes accepted
 
@@ -46,8 +33,7 @@ Based on the final risk score, a transaction is classified into one of the follo
 
 ## Profile Confidence
 
-Profile confidence is calculated using the ratio of **allowed transactions to total transactions**.
-Higher confidence reduces the final risk score, allowing trusted users more flexibility while still detecting anomalies.
+Profile confidence is calculated using the ratio of **allowed transactions to total transactions**. Higher confidence reduces the final risk score, allowing trusted users more flexibility while still detecting anomalies.
 
 ## Tech Stack
 
@@ -58,6 +44,7 @@ Higher confidence reduces the final risk score, allowing trusted users more flex
 * **sqlc** – Type-safe Go code generation from SQL
 
 ## Database Relations (ER Diagram)
+
 ![er-excalidraw](public/fraud-detection-excalidraw.svg)
 
 ## Prerequisites
@@ -111,9 +98,10 @@ The server will start on:
 ```
 http://localhost:<port>
 ```
+
 ## Background Job
 
-A scheduled background job runs **every midnight** to rebuild and update user behavior profiles based on the previous day’s transactions.
+A scheduled background job runs **every midnight** to rebuild and update user behavior profiles based on the previous day's transactions.
 
 ## API Documentation
 
@@ -163,34 +151,9 @@ All routes after login are **protected** and require a Bearer token in the `Auth
 ```json
 {
   "data": {
-    "message": "Login Successfully",
-    "id": 1,
+    "message": "Logged in Successfully",
     "token": "<JWT_TOKEN>"
   }
-}
-```
-
-### Get User
-**GET** `/api/user`
-
-**Headers**
-
-```
-Authorization: Bearer <token>
-```
-
-**Response**
-```json
-{
-    "data": {
-        "message": "User Fetched Successfully",
-        "id": 1,
-        "name": "cheems",
-        "email": "cheems@gmail.com",
-        "mobile": "9356163544",
-        "created_at": "2026-01-23T08:48:46.034184Z",
-        "updated_at": "2026-01-23T08:48:46.034184Z"
-    }
 }
 ```
 
@@ -231,7 +194,7 @@ Authorization: Bearer <token>
 
 ### Get Transactions
 
-**GET** `/api/transactions`
+**GET** `/api/transactions?limit=20&offset=0`
 
 **Headers**
 
@@ -255,8 +218,7 @@ Authorization: Bearer <token>
         "NEW_MODE"
       ],
       "decision": "ALLOW",
-      "created_at": "2026-01-22T12:31:34.429774",
-      "updated_at": "2026-01-22T12:31:34.429774"
+      "created_at": "2026-01-22T12:31:34.429774"
     }
   ]
 }
@@ -294,6 +256,56 @@ Authorization: Bearer <token>
         "time_deviation_score": 5,
         "created_at": "2026-01-23T08:51:15.683128",
         "updated_at": "2026-01-23T08:51:15.683128"
+    }
+}
+```
+
+### Bulk Transaction Handling
+
+**POST** `/api/transactions/upload`
+
+**Headers**
+
+```
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+```
+
+**Response**
+
+```json
+{
+    "data": {
+        "job_id": "811d11d8-1f9b-444d-a8c0-06f9b2c0220f",
+        "status": "PENDING"
+    }
+}
+```
+
+### Status Bulk Transaction Progress
+
+**POST** `/api/transactions/upload/{job_id}/status`
+
+**Headers**
+
+```
+Authorization: Bearer <token>
+```
+
+**Response**
+
+```json
+{
+    "data": {
+        "job_id": "811d11d8-1f9b-444d-a8c0-06f9b2c0220f",
+        "progress": {
+            "failed": 0,
+            "percent": 99,
+            "processed": 1000,
+            "success": 1000,
+            "total": 1000
+        },
+        "status": "COMPLETED"
     }
 }
 ```

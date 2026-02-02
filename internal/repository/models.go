@@ -145,7 +145,7 @@ func (ns NullTriggerFactors) Value() (driver.Value, error) {
 type Transaction struct {
 	ID                      int32               `json:"id"`
 	UserID                  int32               `json:"user_id"`
-	Amount                  int32               `json:"amount"`
+	Amount                  float64             `json:"amount"`
 	Mode                    Mode                `json:"mode"`
 	RiskScore               int32               `json:"risk_score"`
 	TriggeredFactors        []string            `json:"triggered_factors"`
@@ -170,8 +170,8 @@ type User struct {
 
 type UserProfileBehavior struct {
 	UserID                            int32            `json:"user_id"`
-	AverageTransactionAmount          pgtype.Int4      `json:"average_transaction_amount"`
-	MaxTransactionAmountSeen          pgtype.Int4      `json:"max_transaction_amount_seen"`
+	AverageTransactionAmount          pgtype.Float8    `json:"average_transaction_amount"`
+	MaxTransactionAmountSeen          pgtype.Float8    `json:"max_transaction_amount_seen"`
 	AverageNumberOfTransactionsPerDay pgtype.Int4      `json:"average_number_of_transactions_per_day"`
 	RegisteredPaymentModes            []Mode           `json:"registered_payment_modes"`
 	UsualTransactionStartHour         pgtype.Timestamp `json:"usual_transaction_start_hour"`
