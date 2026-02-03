@@ -31,7 +31,7 @@ type FraudAnalysisResult struct {
 }
 
 type CreateTransactionResponse struct {
-	TransactionID    int32                          `json:"txn_id"`
+	TransactionID    int32                          `json:"id"`
 	Decision         repository.TransactionDecision `json:"decision"`
 	RiskScore        int32                          `json:"risk_score"`
 	TriggeredFactors []string                       `json:"triggered_factors"`
