@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/csv"
 	"errors"
-	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -162,9 +161,12 @@ func (s *TransactionService) ProcessBulkTransactions(ctx context.Context, userID
 		// CSV
 		csvReader := csv.NewReader(reader)
 		// Read header
-		_, err := csvReader.Read()
+		headers, err := csvReader.Read()
 		if err != nil {
-			return specs.BulkProcessResponse{}, fmt.Errorf("failed to read CSV header: %w", err)
+			return specs.BulkProcessResponse{}, pkgerrors.ErrFailureInParsingCSV
+		}
+		if strings.ToLower(headers[0]) != "amount" || strings.ToLower(headers[1]) != "mode" || strings.ToLower(headers[2]) != "created_at" {
+			return specs.BulkProcessResponse{}, pkgerrors.ErrUnexpectedHeadersInFile
 		}
 
 		recordIterator = func() ([]string, error) {

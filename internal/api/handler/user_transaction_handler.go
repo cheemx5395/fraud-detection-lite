@@ -161,7 +161,7 @@ func ProcessBulkTransactions(s transactionServiceInterface) func(w http.Response
 			middleware.ErrorResponse(w, http.StatusBadRequest, pkgerrors.ErrInvalidBody)
 			return
 		}
-		if !strings.HasSuffix(header.Filename, ".xlsx") || !strings.HasSuffix(header.Filename, ".csv") {
+		if !strings.HasSuffix(header.Filename, ".xlsx") && !strings.HasSuffix(header.Filename, ".csv") {
 			middleware.ErrorResponse(w, http.StatusBadRequest, pkgerrors.ErrInvalidBody)
 			return
 		}
@@ -169,6 +169,10 @@ func ProcessBulkTransactions(s transactionServiceInterface) func(w http.Response
 
 		res, err := s.ProcessBulkTransactions(r.Context(), userID, file, header.Filename)
 		if err != nil {
+			if errors.Is(err, pkgerrors.ErrUnexpectedHeadersInFile) {
+				middleware.ErrorResponse(w, http.StatusBadRequest, err)
+				return
+			}
 			middleware.ErrorResponse(w, http.StatusInternalServerError, err)
 			return
 		}

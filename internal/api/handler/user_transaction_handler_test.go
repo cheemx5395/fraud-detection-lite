@@ -234,16 +234,62 @@ func TestProcessBulkTransactions(t *testing.T) {
 
 		w := httptest.NewRecorder()
 
+		mockService.On("ProcessBulkTransactions", mock.Anything, int32(1), mock.Anything, "test.csv").Return(specs.BulkProcessResponse{}, pkgerrors.ErrUnexpectedHeadersInFile).Once()
+
 		handler(w, req)
 
-		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 
 		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 
-		assert.Equal(t, pkgerrors.ErrInvalidBody.Error(), response["error_message"])
+		assert.Equal(t, pkgerrors.ErrUnexpectedHeadersInFile.Error(), response["error_message"])
 
+		mockService.AssertExpectations(t)
+	})
+
+	t.Run("successful request", func(t *testing.T) {
+		mockService := new(MockTransactionService)
+		handler := ProcessBulkTransactions(mockService)
+		os.Setenv("JWT_SECRET", "testsecret")
+
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+
+		fileWriter, _ := writer.CreateFormFile("file", "test.csv")
+		fileWriter.Write([]byte("amount,mode,created_at\n1000,UPI,2025-10-23T22:05:19.312257"))
+
+		writer.Close()
+
+		token, _ := helpers.MakeJWT(1, "Test User", "test@example.com", "testsecret", time.Hour)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/transactions/upload", &body)
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+
+		w := httptest.NewRecorder()
+
+		mockService.On("ProcessBulkTransactions", mock.Anything, int32(1), mock.Anything, "test.csv").Return(specs.BulkProcessResponse{
+			JobID:     "1",
+			Status:    "success",
+			Processed: 1,
+			Success:   1,
+			Failed:    0,
+		}, nil).Once()
+
+		handler(w, req)
+
+		var response map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		data := response["data"].(map[string]any)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "1", data["job_id"])
+		assert.Equal(t, "success", data["status"])
+		assert.Equal(t, float64(1), data["processed"])
+		assert.Equal(t, float64(1), data["success"])
+		assert.Equal(t, float64(0), data["failed"])
 		mockService.AssertExpectations(t)
 	})
 }
