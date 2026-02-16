@@ -74,6 +74,11 @@ func GetClaimsFromRequest(r *http.Request) (*specs.UserTokenClaims, error) {
 }
 
 func GetIDFromRequest(r *http.Request) (int32, error) {
+	// Try to get from context first (for testing/middleware)
+	if uid, ok := r.Context().Value("user_id").(int32); ok {
+		return uid, nil
+	}
+
 	claims, err := GetClaimsFromRequest(r)
 	if err != nil {
 		return 0, err

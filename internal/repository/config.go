@@ -6,15 +6,45 @@ import (
 	"os"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Config defines configuration of pgxpool
+// Config defines and returns configuration of pgxpool based on DB_URI provided in env
 func Config() *pgxpool.Config {
 
 	dbConfig, err := pgxpool.ParseConfig(os.Getenv("DB_URI"))
 	if err != nil {
 		log.Printf("error: failed while configuring: %v", err)
+		return nil
+	}
+
+	dbConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		var modeOid uint32
+		err := conn.QueryRow(ctx, "SELECT 'mode'::regtype::oid").Scan(&modeOid)
+		if err != nil {
+			return err
+		}
+
+		// OIDs are primarily for internal system use, especially in the system catalog tables
+		var modeArrayOid uint32
+		err = conn.QueryRow(ctx, "SELECT '_mode'::regtype::oid").Scan(&modeArrayOid)
+		if err != nil {
+			return err
+		}
+
+		conn.TypeMap().RegisterType(&pgtype.Type{
+			Name:  "mode",
+			OID:   modeOid,
+			Codec: &pgtype.EnumCodec{},
+		})
+
+		conn.TypeMap().RegisterType(&pgtype.Type{
+			Name:  "_mode",
+			OID:   modeArrayOid,
+			Codec: &pgtype.ArrayCodec{ElementType: &pgtype.Type{Name: "mode", OID: modeOid, Codec: &pgtype.EnumCodec{}}},
+		})
+
 		return nil
 	}
 

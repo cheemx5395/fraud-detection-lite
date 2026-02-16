@@ -24,6 +24,10 @@ const (
 	// Time window for frequency calculation (in hours)
 	FrequencyWindowHours = 1.0 * time.Hour
 
+	// Frequency constants
+	ThresholdFrequency       = 3
+	RiskPerTxnAfterThreshold = 20.0
+
 	// Amount deviation multipliers
 	AmountDeviationModerate = 1.5 // 1.5x average is moderate risk
 	AmountDeviationHigh     = 3.0 // 3x average is high risk

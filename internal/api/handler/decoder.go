@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/errors"
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/specs"
@@ -15,6 +16,8 @@ func decodeUserSignupRequest(r *http.Request) (specs.UserSignupRequest, error) {
 	if err != nil {
 		return specs.UserSignupRequest{}, errors.ErrInvalidBody
 	}
+	req.Name = strings.TrimSpace(req.Name)
+	req.Email = strings.TrimSpace(req.Email)
 
 	return req, nil
 }
@@ -26,6 +29,7 @@ func decodeUserLoginRequest(r *http.Request) (specs.UserLoginRequest, error) {
 	if err != nil {
 		return specs.UserLoginRequest{}, err
 	}
+	req.Email = strings.TrimSpace(req.Email)
 	return req, nil
 }
 

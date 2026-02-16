@@ -159,13 +159,12 @@ type Transaction struct {
 }
 
 type User struct {
-	ID           int32            `json:"id"`
-	Name         string           `json:"name"`
-	Email        string           `json:"email"`
-	MobileNumber string           `json:"mobile_number"`
-	HashedPass   string           `json:"hashed_pass"`
-	CreatedAt    pgtype.Timestamp `json:"created_at"`
-	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+	ID         int32            `json:"id"`
+	Name       string           `json:"name"`
+	Email      string           `json:"email"`
+	HashedPass string           `json:"hashed_pass"`
+	CreatedAt  pgtype.Timestamp `json:"created_at"`
+	UpdatedAt  pgtype.Timestamp `json:"updated_at"`
 }
 
 type UserProfileBehavior struct {
@@ -179,4 +178,5 @@ type UserProfileBehavior struct {
 	TotalTransactions                 int32            `json:"total_transactions"`
 	AllowedTransactions               int32            `json:"allowed_transactions"`
 	UpdatedAt                         pgtype.Timestamp `json:"updated_at"`
+	StdDevTransactionAmount           pgtype.Int4      `json:"std_dev_transaction_amount"`
 }

@@ -1,3 +1,5 @@
 fraud-detection-lite
 *.env
 .vscode
+test_data_bulk_large.csv
+test_data_bulk_large.xlsx

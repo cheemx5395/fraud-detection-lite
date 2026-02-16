@@ -4,15 +4,18 @@ import (
 	"context"
 	"log"
 
-	"github.com/cheemx5395/fraud-detection-lite/internal/repository"
 	"github.com/robfig/cron/v3"
 )
 
-type ProfileUpdater struct {
-	queries *repository.Queries
+type workerQuerier interface {
+	RebuildAllUserProfiles(ctx context.Context) error
 }
 
-func NewProfileUpdater(queries *repository.Queries) *ProfileUpdater {
+type ProfileUpdater struct {
+	queries workerQuerier
+}
+
+func NewProfileUpdater(queries workerQuerier) *ProfileUpdater {
 	return &ProfileUpdater{queries: queries}
 }
 

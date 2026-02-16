@@ -3,16 +3,39 @@ package specs
 import (
 	"time"
 
+	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/errors"
 	"github.com/cheemx5395/fraud-detection-lite/internal/repository"
 )
 
 type CreateTransactionRequest struct {
-	Amount int    `json:"amount"`
-	Mode   string `json:"mode"`
+	Amount float64 `json:"amount"`
+	Mode   string  `json:"mode"`
+}
+
+func (r CreateTransactionRequest) Validate() error {
+	switch {
+	case r.Amount == 0.0 && r.Mode == "":
+		return errors.ErrInvalidBody
+	case r.Amount == 0.0:
+		return errors.ErrMissingAmountInRequest
+	case r.Mode == "":
+		return errors.ErrMissingModeInRequest
+	}
+
+	if r.Amount < 0 || r.Amount > 1e16 {
+		return errors.ErrAmountOutOfRange
+	}
+
+	switch repository.Mode(r.Mode) {
+	case repository.ModeUPI, repository.ModeCARD, repository.ModeNETBANKING:
+		return nil
+	default:
+		return errors.ErrInvalidPaymentMode
+	}
 }
 
 type CreateBulkTransactionRequest struct {
-	Amount    int       `json:"amount"`
+	Amount    float64   `json:"amount"`
 	Mode      string    `json:"mode"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -36,4 +59,12 @@ type CreateTransactionResponse struct {
 	RiskScore        int32                          `json:"risk_score"`
 	TriggeredFactors []string                       `json:"triggered_factors"`
 	CreatedAt        time.Time                      `json:"created_at"`
+}
+
+type BulkProcessResponse struct {
+	JobID     string `json:"job_id"`
+	Status    string `json:"status"`
+	Processed int    `json:"processed"`
+	Success   int    `json:"success"`
+	Failed    int    `json:"failed"`
 }

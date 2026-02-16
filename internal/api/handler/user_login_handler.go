@@ -1,120 +1,95 @@
 package handler
 
 import (
+	"context"
+	"errors"
 	"net/http"
-	"os"
-	"time"
 
-	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/constants"
-	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/errors"
+	pkgerrors "github.com/cheemx5395/fraud-detection-lite/internal/pkg/errors"
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/helpers"
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/middleware"
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/specs"
-	"github.com/cheemx5395/fraud-detection-lite/internal/repository"
-	"github.com/redis/go-redis/v9"
 )
 
+type userServiceInterface interface {
+	Signup(ctx context.Context, req specs.UserSignupRequest) (specs.UserSignupResponse, error)
+	Login(ctx context.Context, req specs.UserLoginRequest) (specs.UserLoginResponse, error)
+	Logout(ctx context.Context, claims *specs.UserTokenClaims) error
+}
+
 // Signup returns an HTTP handler that signs up user using DB
-func Signup(DB *repository.Queries) func(http.ResponseWriter, *http.Request) {
+func Signup(s userServiceInterface) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			middleware.ErrorResponse(w, http.StatusMethodNotAllowed, pkgerrors.ErrMethodNotAllowed)
+		}
+
 		req, err := decodeUserSignupRequest(r)
 		if err != nil {
-			middleware.ErrorResponse(w, http.StatusBadRequest, errors.ErrInvalidBody)
+			middleware.ErrorResponse(w, http.StatusBadRequest, err)
 			return
 		}
 
-		hashedPass, err := helpers.HashPassword(req.Password)
+		if err := req.Validate(); err != nil {
+			middleware.ErrorResponse(w, http.StatusBadRequest, err)
+			return
+		}
+
+		res, err := s.Signup(r.Context(), req)
 		if err != nil {
 			middleware.ErrorResponse(w, http.StatusInternalServerError, err)
 			return
 		}
 
-		userParams := repository.CreateUserParams{
-			Name:         req.Name,
-			Email:        req.Email,
-			MobileNumber: req.Mobile,
-			HashedPass:   hashedPass,
-		}
-
-		user, err := DB.CreateUser(r.Context(), userParams)
-		if err != nil {
-			middleware.ErrorResponse(w, http.StatusConflict, err)
-			return
-		}
-
-		res := specs.UserSignupResponse{
-			Message: "Signup Success!",
-			ID:      user.ID,
-		}
-
-		middleware.SuccessResponse(w, 201, res)
+		middleware.SuccessResponse(w, http.StatusCreated, res)
 	}
 }
 
 // Login returns an HTTP handler that logs the user into the system
-func Login(DB *repository.Queries) func(http.ResponseWriter, *http.Request) {
+func Login(s userServiceInterface) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			middleware.ErrorResponse(w, http.StatusMethodNotAllowed, pkgerrors.ErrMethodNotAllowed)
+		}
+
 		req, err := decodeUserLoginRequest(r)
 		if err != nil {
 			middleware.ErrorResponse(w, http.StatusBadRequest, err)
 			return
 		}
 
-		if req.Email == "" || req.Password == "" {
-			middleware.ErrorResponse(w, http.StatusNotFound, errors.ErrInvalidBody)
+		if err := req.Validate(); err != nil {
+			middleware.ErrorResponse(w, http.StatusBadRequest, err)
 			return
 		}
 
-		user, err := DB.GetUserByEmail(r.Context(), req.Email)
+		res, err := s.Login(r.Context(), req)
 		if err != nil {
-			middleware.ErrorResponse(w, http.StatusNotFound, errors.ErrUserNotFound)
+			if errors.Is(err, pkgerrors.ErrUserNotFound) {
+				middleware.ErrorResponse(w, http.StatusNotFound, err)
+			} else if errors.Is(err, pkgerrors.ErrWrongPassword) {
+				middleware.ErrorResponse(w, http.StatusUnauthorized, err)
+			} else {
+				middleware.ErrorResponse(w, http.StatusInternalServerError, err)
+			}
 			return
-		}
-
-		err = helpers.CheckPasswordHash(req.Password, user.HashedPass)
-		if err != nil {
-			middleware.ErrorResponse(w, http.StatusUnauthorized, errors.ErrWrongPassword)
-			return
-		}
-
-		token, err := helpers.MakeJWT(user.ID, user.Name, user.Email, os.Getenv("JWT_SECRET"), constants.TokenExpiryDuration)
-		if err != nil {
-			middleware.ErrorResponse(w, http.StatusInternalServerError, errors.ErrGenerateToken)
-			return
-		}
-
-		res := specs.UserLoginResponse{
-			Message: "Logged in Successfully",
-			Token:   token,
 		}
 
 		middleware.SuccessResponse(w, http.StatusOK, res)
 	}
 }
 
-func Logout(DB *repository.Queries, RD *redis.Client) func(http.ResponseWriter, *http.Request) {
+func Logout(s userServiceInterface) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		claims, err := helpers.GetClaimsFromRequest(r)
 		if err != nil {
-			middleware.ErrorResponse(w, http.StatusUnauthorized, errors.ErrInvalidToken)
+			middleware.ErrorResponse(w, http.StatusUnauthorized, err)
 			return
 		}
 
-		ttl := time.Until(claims.ExpiresAt.Time)
-		if ttl <= 0 {
-			middleware.ErrorResponse(w, http.StatusUnauthorized, errors.ErrExpiredToken)
-			return
-		}
-
-		err = RD.Set(
-			r.Context(),
-			"blacklist:"+claims.ID,
-			"true",
-			ttl,
-		).Err()
-
+		err = s.Logout(r.Context(), claims)
 		if err != nil {
-			middleware.ErrorResponse(w, http.StatusInternalServerError, errors.ErrLogoutFailed)
+			middleware.ErrorResponse(w, http.StatusInternalServerError, err)
 			return
 		}
 

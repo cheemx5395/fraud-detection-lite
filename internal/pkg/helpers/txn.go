@@ -22,9 +22,12 @@ func CalculateProfileConfidence(profile *repository.UserProfileBehavior) float64
 
 // CalculateAmountDeviationRisk calculates risk based on how
 // much the transaction amount deviates from user's average
-// spending patterns
+// spending patterns using Z-Score
 func CalculateAmountDeviationRisk(transactionAmount int32, profile *repository.UserProfileBehavior) float64 {
-	if !profile.AverageTransactionAmount.Valid || profile.TotalTransactions < constants.MinTransactionsForProfiling {
+	// If not enough data or profile incomplete, use heuristic based on Max seen
+	if !profile.AverageTransactionAmount.Valid ||
+		profile.TotalTransactions < constants.MinTransactionsForProfiling {
+
 		if !profile.MaxTransactionAmountSeen.Valid {
 			return 30.0
 		}
@@ -32,7 +35,6 @@ func CalculateAmountDeviationRisk(transactionAmount int32, profile *repository.U
 		// comparing with maximum transaction seen till now
 		if transactionAmount > int32(profile.MaxTransactionAmountSeen.Float64) {
 			ratio := float64(transactionAmount) / float64(profile.MaxTransactionAmountSeen.Float64)
-
 			risk := 20.0 + (ratio-1.0)*30.0
 			return min(risk, 100.0)
 		}
@@ -40,65 +42,68 @@ func CalculateAmountDeviationRisk(transactionAmount int32, profile *repository.U
 	}
 
 	avgAmount := float64(profile.AverageTransactionAmount.Float64)
+	stdDev := float64(profile.StdDevTransactionAmount.Int32)
 	txAmount := float64(transactionAmount)
 
-	// Calculate deviation ratio
-	ratio := txAmount / avgAmount
-
-	var risk float64
-	if ratio <= 1.0 {
-		risk = 0.0
-	} else if ratio <= constants.AmountDeviationModerate {
-		risk = 5.0 + ((ratio-1.0)/(constants.AmountDeviationModerate-1.0))*20.0
-	} else if ratio <= constants.AmountDeviationHigh {
-		risk = 25.0 + ((ratio-constants.AmountDeviationModerate)/(constants.AmountDeviationHigh-constants.AmountDeviationModerate))*45.0
-	} else {
-		risk = 70.0 + min((ratio-constants.AmountDeviationHigh)*10.0, 30.0)
+	// If StdDev is 0, it means all previous transactions were the exact same amount.
+	// Any deviation is technically "infinite" Z-score.
+	// We handle this by using a small epsilon or fallback logic.
+	if stdDev == 0 {
+		if txAmount == avgAmount {
+			return 0.0
+		}
+		// If amount differs and stdDev is 0, highly suspicious if amount is larger
+		if txAmount > avgAmount {
+			return 100.0
+		}
+		// If amount is smaller, maybe less risky?
+		return 20.0
 	}
+
+	// Z-Score Formula: (X - μ) / σ
+	zScore := (txAmount - avgAmount) / stdDev
+
+	// We only care about ensuring positive amounts are not valid outliers on the high side
+	// Low amounts (zScore < 0) are usually not risky for "amount deviation" (unless reverse fraud?)
+	if zScore <= 1.0 {
+		return 0.0
+	}
+
+	// Map Z-Score to Risk [0, 100]
+	// Z=1 => Risk 0
+	// Z=3 => Risk 50 (99.7% conf)
+	// Z=5 => Risk 100
+	// Linear interpolation: Risk = (Z - 1) * 25
+	risk := (zScore - 1.0) * 25.0
+
 	return min(risk, 100.0)
 }
 
 // CalculateFrequencySpikeRisk calculates risk based on transaction frequency
-// compared to user's normal pattern
+// Cumulative logic: after 3 consecutive transactions in 1 hour window,
+// each transaction adds X (20) to risk score.
 func CalculateFrequencySpikeRisk(
 	profile *repository.UserProfileBehavior,
 	recentTransactionCount int,
 ) float64 {
 
-	windowHours := constants.FrequencyWindowHours.Hours()
+	// "After 3 consecutive transactions... add X into risk score"
+	// recentTransactionCount includes the current one being analyzed?
+	// Usually countRecentTransactions excludes current/pending, but the handler passed count.
+	// Let's assume 'recentTransactionCount' is the count of *past* transactions in the window.
+	// So if recent=3, this is the 4th transaction.
 
-	if !profile.AverageNumberOfTransactionsPerDay.Valid ||
-		profile.TotalTransactions < constants.MinTransactionsForProfiling {
+	// Total including current
+	currentTxnCount := recentTransactionCount + 1
 
-		// Allow ~3 tx per hour for new users
-		maxAllowed := int(3 * windowHours)
-
-		if recentTransactionCount > maxAllowed {
-			risk := 40.0 + float64(recentTransactionCount-maxAllowed)*10.0
-			return min(risk, 100.0)
-		}
-		return 10.0
+	if currentTxnCount <= constants.ThresholdFrequency {
+		return 0.0
 	}
 
-	avgPerDay := float64(profile.AverageNumberOfTransactionsPerDay.Int32)
-
-	expectedInWindow := avgPerDay * (windowHours / 24.0)
-	if expectedInWindow < 0.5 {
-		expectedInWindow = 0.5
-	}
-
-	actual := float64(recentTransactionCount)
-	ratio := actual / expectedInWindow
-
-	var risk float64
-	switch {
-	case ratio <= 1.5:
-		risk = 0.0
-	case ratio <= 3.0:
-		risk = 15.0 + ((ratio-1.5)/1.5)*35.0
-	default:
-		risk = 50.0 + min((ratio-3.0)*15.0, 50.0)
-	}
+	// For 4th txn (count=3+1=4): risk = (4-3)*20 = 20
+	// For 5th txn: risk = 40
+	excess := float64(currentTxnCount - constants.ThresholdFrequency)
+	risk := excess * constants.RiskPerTxnAfterThreshold
 
 	return min(risk, 100.0)
 }

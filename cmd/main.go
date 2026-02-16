@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,53 +11,63 @@ import (
 	"github.com/cheemx5395/fraud-detection-lite/internal/api"
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/constants"
 	"github.com/cheemx5395/fraud-detection-lite/internal/repository"
+	"github.com/cheemx5395/fraud-detection-lite/internal/service"
 	"github.com/cheemx5395/fraud-detection-lite/internal/worker"
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
+	"go.uber.org/zap"
 )
 
 func main() {
 	ctx := context.Background()
 
+	// Initialize Logger
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
+
 	// setup env
 	err := godotenv.Load()
 	if err != nil {
-		log.Printf("Error loading environment")
+		logger.Error("Error loading environment")
 		return
 	}
 
-	fmt.Println("Starting Server...")
-	defer fmt.Println("Shutting Down Server...")
+	logger.Info("Starting Server...")
+	defer logger.Info("Shutting Down Server...")
 
 	// Initialize DB
 	DB, db, err := repository.InitializeDatabase(ctx)
 	if err != nil {
-		log.Printf("Database Error: %v", err)
+		logger.Error("Database Error", zap.Error(err))
 		return
 	}
-	fmt.Println("Connected to Database!")
+	logger.Info("Connected to Database!")
 	defer db.Close()
 
 	// Initialize Redis
 	RD := worker.InitializeRedis()
-	fmt.Println("Connected to Redis")
+	logger.Info("Connected to Redis")
 	defer RD.Close()
 
+	// Initialize Services
+	txnService := service.NewTransactionService(DB, db, logger)
+	userService := service.NewUserService(DB, RD, logger)
+
 	// Initializing Router
-	router := api.NewRouter(DB, RD)
+	router := api.NewRouter(DB, RD, txnService, userService, logger)
 
 	// CORS middleware
-	cors := cors.New(constants.CorsOptions)
+	corsOptions := cors.New(constants.CorsOptions)
 
 	// Setup the server
 	server := &http.Server{
 		Addr:    os.Getenv("PORT"),
-		Handler: cors.Handler(router),
+		Handler: corsOptions.Handler(router),
 	}
 
 	go func() {
 		if err = server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal("Error starting Server: ", err)
+			logger.Fatal("Error starting Server", zap.Error(err))
 		}
 	}()
 
@@ -73,7 +81,7 @@ func main() {
 	signal.Notify(signalChan, syscall.SIGTERM)
 
 	sig := <-signalChan
-	fmt.Println("Received terminate, gracefully shutting down:", sig)
+	logger.Info("Received terminate, gracefully shutting down", zap.Any("signal", sig))
 
 	ctx = cronInstance.Stop()
 	<-ctx.Done()

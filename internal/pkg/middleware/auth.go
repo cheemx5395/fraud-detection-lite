@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/cheemx5395/fraud-detection-lite/internal/pkg/errors"
@@ -8,7 +9,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func AuthMiddleware(RD *redis.Client) func(http.Handler) http.Handler {
+type redisClient interface {
+	Exists(ctx context.Context, keys ...string) *redis.IntCmd
+}
+
+func AuthMiddleware(RD redisClient) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			claims, err := helpers.GetClaimsFromRequest(r)
